@@ -772,6 +772,12 @@ const styles = StyleSheet.create({
     color: '#1E3A5F',
     marginBottom: 12,
   },
+  noFaqText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
   faqItem: {
     flexDirection: 'row',
     alignItems: 'center',
