@@ -395,6 +395,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F97316',
   },
+  billingStatusRow: {
+    marginTop: 8,
+  },
+  billingStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  billingStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   maintenanceContent: {
     paddingVertical: 16,
     alignItems: 'center',
