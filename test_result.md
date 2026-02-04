@@ -132,6 +132,18 @@ backend:
         agent: "testing"
         comment: "GET /api/auth/me returns valid user data (test_user_1770212957374, Test User, testuser@lilycrest.com, resident role) with Bearer token authentication"
 
+  - task: "Email Password Login Endpoint"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: POST /api/auth/login accepts email/password, verifies user in Firebase Auth, creates session token. Tested with curl - returns user data and session token for registered tenant"
+
   - task: "Auth Me Endpoint"
     implemented: true
     working: true
@@ -218,9 +230,9 @@ frontend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Shows dormitory background with Login/Sign Up buttons"
+        comment: "Shows dormitory background with Login button only (Sign Up removed). Has entry animations."
 
-  - task: "Login Screen"
+  - task: "Login Screen with Email/Password"
     implemented: true
     working: true
     file: "app/login.tsx"
@@ -231,6 +243,21 @@ frontend:
       - working: true
         agent: "main"
         comment: "Login form with Google OAuth button visible and working"
+      - working: true
+        agent: "main"
+        comment: "UPDATED: Email/Password login now functional. Real-time validation with visual feedback (red border for errors, green for valid). Sign In button connects to /api/auth/login endpoint."
+
+  - task: "Real-time Form Validation"
+    implemented: true
+    working: true
+    file: "app/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: Email validation (format check), Password validation (min 6 chars). Visual feedback with colored borders and icons. Error messages displayed inline."
 
   - task: "Dashboard Screen"
     implemented: true
@@ -307,14 +334,14 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Google OAuth Flow"
-    - "Dashboard data loading with session"
-    - "Maintenance request submission"
+    - "Email Password Login Endpoint"
+    - "Login Screen with Email/Password"
+    - "Real-time Form Validation"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -324,3 +351,5 @@ agent_communication:
     message: "Initial implementation complete. All screens built and API endpoints working. Tested with curl and screenshots. Ready for backend testing of auth flow and CRUD operations."
   - agent: "testing"
     message: "Comprehensive backend API testing complete - all 12 endpoints tested successfully with 100% pass rate. Auth session with Bearer token working correctly, maintenance CRUD operations functional, dashboard/billing/profile updates all working. All high priority tasks verified working."
+  - agent: "main"
+    message: "IMPLEMENTED: Email/Password authentication. Backend now has POST /api/auth/login endpoint that verifies users against Firebase Auth. Frontend login screen updated with real-time validation and calls the new endpoint. Tested with curl - successfully returns user data and session token for registered tenant email (p.vincebryn@gmail.com). Please test the new auth flow."
