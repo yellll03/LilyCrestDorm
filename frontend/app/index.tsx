@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
@@ -20,6 +21,7 @@ export default function SplashScreen() {
   const router = useRouter();
   const { user, isLoading, checkAuth } = useAuth();
   const [checking, setChecking] = useState(true);
+  const [showContent, setShowContent] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -28,6 +30,9 @@ export default function SplashScreen() {
   const buttonFade = useRef(new Animated.Value(0)).current;
   const logoRotate = useRef(new Animated.Value(0)).current;
 
+  // Use native driver only on native platforms
+  const useNativeDriver = Platform.OS !== 'web';
+
   useEffect(() => {
     const init = async () => {
       await checkAuth();
@@ -35,19 +40,22 @@ export default function SplashScreen() {
     };
     init();
 
+    // Show content after a short delay for web
+    setTimeout(() => setShowContent(true), 100);
+
     // Start animations
     Animated.sequence([
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver,
           easing: Easing.out(Easing.cubic),
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver,
           easing: Easing.out(Easing.back(1.5)),
         }),
       ]),
@@ -55,34 +63,36 @@ export default function SplashScreen() {
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 600,
-          useNativeDriver: true,
+          useNativeDriver,
           easing: Easing.out(Easing.cubic),
         }),
         Animated.timing(buttonFade, {
           toValue: 1,
           duration: 600,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]),
     ]).start();
 
-    // Subtle logo rotation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoRotate, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        Animated.timing(logoRotate, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-          easing: Easing.inOut(Easing.sin),
-        }),
-      ])
-    ).start();
+    // Subtle logo rotation (only on native)
+    if (Platform.OS !== 'web') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(logoRotate, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+          Animated.timing(logoRotate, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ])
+      ).start();
+    }
   }, []);
 
   useEffect(() => {
@@ -94,12 +104,12 @@ export default function SplashScreen() {
   if (checking || isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Animated.View style={[styles.loadingLogo, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <View style={styles.loadingLogo}>
           <View style={styles.logoIconLarge}>
             <Ionicons name="home" size={48} color="#F97316" />
           </View>
           <Text style={styles.loadingText}>Lilycrest</Text>
-        </Animated.View>
+        </View>
         <ActivityIndicator size="large" color="#1E3A5F" style={styles.spinner} />
       </View>
     );
@@ -121,16 +131,16 @@ export default function SplashScreen() {
           {/* Logo Section */}
           <Animated.View style={[
             styles.logoSection,
-            { 
+            showContent && { 
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }]
             }
           ]}>
-            <Animated.View style={[styles.logoContainer, { transform: [{ rotate: spin }] }]}>
+            <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
                 <Ionicons name="home" size={32} color="#FFFFFF" />
               </View>
-            </Animated.View>
+            </View>
             <Text style={styles.brandName}>Lilycrest</Text>
             <Text style={styles.brandTagline}>Dormitory</Text>
           </Animated.View>
@@ -138,7 +148,7 @@ export default function SplashScreen() {
           {/* Text Section */}
           <Animated.View style={[
             styles.textContainer,
-            {
+            showContent && {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }]
             }
@@ -152,7 +162,7 @@ export default function SplashScreen() {
           </Animated.View>
           
           {/* Button Section */}
-          <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+          <Animated.View style={[styles.buttonContainer, showContent && { opacity: buttonFade }]}>
             <TouchableOpacity 
               style={styles.getStartedButton}
               onPress={() => router.push('/login')}
@@ -217,11 +227,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F97316',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#F97316',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 8px 16px rgba(249, 115, 22, 0.4)',
+      },
+      default: {
+        shadowColor: '#F97316',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }),
   },
   brandName: {
     fontSize: 36,
@@ -263,11 +280,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: 16,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }),
   },
   getStartedText: {
     color: '#1E3A5F',
