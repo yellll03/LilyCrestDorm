@@ -78,6 +78,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     paddingBottom: 50,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   content: {
     paddingHorizontal: 24,
