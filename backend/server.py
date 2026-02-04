@@ -245,23 +245,29 @@ async def get_current_user(request: Request) -> Optional[User]:
     return User(**user_doc)
 
 def verify_tenant_in_firebase(email: str) -> dict:
-    """Check if email exists in Firebase 'tenant' collection"""
+    """Check if email exists in Firebase Authentication (registered users)"""
     try:
-        # Query Firestore tenant collection for the email
-        tenant_ref = firestore_db.collection('tenant')
+        from firebase_admin import auth
         
-        # Try to find by email field
-        query = tenant_ref.where('email', '==', email).limit(1)
-        docs = query.get()
+        # Try to get user by email from Firebase Authentication
+        user = auth.get_user_by_email(email)
         
-        for doc in docs:
-            tenant_data = doc.to_dict()
-            tenant_data['firebase_id'] = doc.id
-            return tenant_data
+        if user:
+            return {
+                "firebase_id": user.uid,
+                "email": user.email,
+                "name": user.display_name or email.split('@')[0],
+                "phone": user.phone_number,
+                "picture": user.photo_url,
+                "email_verified": user.email_verified
+            }
         
         return None
+    except auth.UserNotFoundError:
+        logger.info(f"User not found in Firebase Auth: {email}")
+        return None
     except Exception as e:
-        logger.error(f"Firebase verification error: {e}")
+        logger.error(f"Firebase Auth verification error: {e}")
         return None
 
 # ============== Auth Routes ==============
