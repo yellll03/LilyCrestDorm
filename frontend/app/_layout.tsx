@@ -20,6 +20,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth-callback" />
         <Stack.Screen name="documents" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="billing-history" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="about" />
       </Stack>
     </AuthProvider>
   );
