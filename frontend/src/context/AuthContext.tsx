@@ -17,6 +17,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   processSessionId: (sessionId: string) => Promise<boolean>;
@@ -49,13 +50,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    const result = await loginWithEmail(email, password);
+    return result.success;
+  };
+
+  const loginWithEmail = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      // For now, we use Google OAuth, so this is a placeholder
-      return false;
-    } catch (error) {
+      
+      const response = await api.post('/auth/login', { email, password });
+      const { user: userData, session_token } = response.data;
+      
+      await AsyncStorage.setItem('session_token', session_token);
+      setUser(userData);
+      
+      return { success: true };
+    } catch (error: any) {
       console.error('Login error:', error);
-      return false;
+      
+      // Handle specific error cases
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      
+      if (status === 403) {
+        return { 
+          success: false, 
+          error: detail || 'Your account is not registered as an active tenant. Please contact the dormitory administrator.' 
+        };
+      } else if (status === 401) {
+        return { 
+          success: false, 
+          error: detail || 'Invalid email or password. Please try again.' 
+        };
+      } else if (status === 429) {
+        return { 
+          success: false, 
+          error: 'Too many failed attempts. Please try again later.' 
+        };
+      } else {
+        return { 
+          success: false, 
+          error: 'Unable to sign in. Please check your connection and try again.' 
+        };
+      }
     } finally {
       setIsLoading(false);
     }
