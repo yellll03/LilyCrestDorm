@@ -130,7 +130,7 @@ export default function SplashScreen() {
         {/* Logo Section at Top */}
         <Animated.View style={[
           styles.logoSection,
-          showContent && { 
+          { 
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }]
           }
@@ -149,7 +149,7 @@ export default function SplashScreen() {
           {/* Text Section */}
           <Animated.View style={[
             styles.textContainer,
-            showContent && {
+            {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }]
             }
@@ -163,7 +163,7 @@ export default function SplashScreen() {
           </Animated.View>
           
           {/* Button Section */}
-          <Animated.View style={[styles.buttonContainer, showContent && { opacity: buttonFade }]}>
+          <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
             <TouchableOpacity 
               style={styles.getStartedButton}
               onPress={() => router.push('/login')}
