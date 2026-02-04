@@ -359,7 +359,7 @@ export default function ChatbotScreen() {
 
             {/* FAQ Quick Replies */}
             <View style={styles.faqContainer}>
-              <Text style={styles.faqTitle}>Frequently Asked Questions:</Text>
+              <Text style={styles.faqTitle}>Frequently Asked Questions: ({filteredFAQs.length})</Text>
               {filteredFAQs.length === 0 ? (
                 <Text style={styles.noFaqText}>Loading FAQs...</Text>
               ) : (
