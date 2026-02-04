@@ -431,6 +431,10 @@ def main():
     user_data = test_auth_endpoints()
     test_results.append(("Auth Endpoints", user_data is not None))
     
+    # Test Email/Password Login endpoint specifically
+    user_data_from_login = test_email_password_login()
+    test_results.append(("Email/Password Login", user_data_from_login is not None))
+    
     test_results.append(("Dashboard Endpoint", test_dashboard_endpoint()))
     test_results.append(("Maintenance Endpoints", test_maintenance_endpoints(user_data)))
     test_results.append(("Announcements Endpoint", test_announcements_endpoint()))
