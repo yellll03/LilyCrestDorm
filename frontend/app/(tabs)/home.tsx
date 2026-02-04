@@ -107,7 +107,11 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Ionicons name="home" size={24} color="#F59E0B" />
+            <Image
+              source={require('../../assets/images/logo-icon.png')}
+              style={styles.logoIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.logoText}>Lilycrest</Text>
           </View>
           <TouchableOpacity style={styles.notificationButton}>
