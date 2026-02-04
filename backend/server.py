@@ -983,85 +983,169 @@ async def get_my_dashboard(request: Request):
 @api_router.post("/seed")
 async def seed_data():
     """Seed initial data for development"""
-    # Create sample rooms
+    # Create sample rooms based on Lilycrest pricing (Jan 1, 2026)
     sample_rooms = [
+        # Quadruple Sharing Rooms (10% off)
         {
-            "room_id": "room_001",
-            "room_number": "101",
-            "room_type": "Standard",
-            "bed_type": "Single",
-            "capacity": 1,
+            "room_id": "room_quad_001",
+            "room_number": "Q101",
+            "room_type": "Quadruple Sharing",
+            "bed_type": "Double Deck Bed",
+            "capacity": 4,
             "floor": 1,
             "status": "available",
-            "price": 8000.0,
-            "amenities": ["WiFi", "Air Conditioning", "Private Bathroom"],
-            "description": "Cozy standard room with all basic amenities.",
-            "images": [],
+            "price": 5400.0,  # Long term (6+ months)
+            "regular_price": 6000.0,
+            "short_term_price": 6300.0,
+            "short_term_regular": 7000.0,
+            "discount": 10,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Quadruple sharing room with common areas per floor including lounge area, toilet & shower. Fully furnished with double decked beds, mattresses, AC, tables, chairs, cabinets.",
+            "images": ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800"],
             "created_at": datetime.now(timezone.utc)
         },
         {
-            "room_id": "room_002",
-            "room_number": "102",
-            "room_type": "Standard",
-            "bed_type": "Single",
-            "capacity": 1,
+            "room_id": "room_quad_002",
+            "room_number": "Q102",
+            "room_type": "Quadruple Sharing",
+            "bed_type": "Double Deck Bed",
+            "capacity": 4,
             "floor": 1,
             "status": "available",
-            "price": 8000.0,
-            "amenities": ["WiFi", "Air Conditioning", "Shared Bathroom"],
-            "description": "Standard room with shared bathroom facilities.",
-            "images": [],
+            "price": 5400.0,
+            "regular_price": 6000.0,
+            "short_term_price": 6300.0,
+            "short_term_regular": 7000.0,
+            "discount": 10,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Quadruple sharing room with common areas per floor including lounge area, toilet & shower.",
+            "images": ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800"],
             "created_at": datetime.now(timezone.utc)
         },
         {
-            "room_id": "room_003",
-            "room_number": "201",
-            "room_type": "Standard",
-            "bed_type": "Single",
-            "capacity": 1,
+            "room_id": "room_quad_003",
+            "room_number": "Q201",
+            "room_type": "Quadruple Sharing",
+            "bed_type": "Double Deck Bed",
+            "capacity": 4,
             "floor": 2,
             "status": "occupied",
-            "price": 8000.0,
-            "amenities": ["WiFi", "Air Conditioning", "Private Bathroom"],
-            "description": "Standard room on the second floor.",
-            "images": [],
+            "price": 5400.0,
+            "regular_price": 6000.0,
+            "short_term_price": 6300.0,
+            "short_term_regular": 7000.0,
+            "discount": 10,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Quadruple sharing room on 2nd floor with common areas.",
+            "images": ["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800"],
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Double Sharing Rooms (20% off)
+        {
+            "room_id": "room_double_001",
+            "room_number": "D101",
+            "room_type": "Double Sharing",
+            "bed_type": "Double Deck Bed",
+            "capacity": 2,
+            "floor": 1,
+            "status": "available",
+            "price": 7200.0,  # Long term (6+ months)
+            "regular_price": 9000.0,
+            "short_term_price": 8000.0,
+            "short_term_regular": 10000.0,
+            "discount": 20,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Double sharing room with common areas per floor including lounge area, toilet & shower. Fully furnished with double decked beds, mattresses, AC, tables, chairs, cabinets.",
+            "images": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800"],
             "created_at": datetime.now(timezone.utc)
         },
         {
-            "room_id": "room_004",
-            "room_number": "202",
-            "room_type": "Deluxe",
-            "bed_type": "Double",
+            "room_id": "room_double_002",
+            "room_number": "D102",
+            "room_type": "Double Sharing",
+            "bed_type": "Double Deck Bed",
+            "capacity": 2,
+            "floor": 1,
+            "status": "available",
+            "price": 7200.0,
+            "regular_price": 9000.0,
+            "short_term_price": 8000.0,
+            "short_term_regular": 10000.0,
+            "discount": 20,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Double sharing room with common areas per floor.",
+            "images": ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800"],
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "room_id": "room_double_003",
+            "room_number": "D201",
+            "room_type": "Double Sharing",
+            "bed_type": "Double Deck Bed",
             "capacity": 2,
             "floor": 2,
-            "status": "available",
-            "price": 12000.0,
-            "amenities": ["WiFi", "Air Conditioning", "Private Bathroom", "Mini Fridge", "TV"],
-            "description": "Spacious deluxe room with premium amenities.",
-            "images": [],
+            "status": "occupied",
+            "price": 7200.0,
+            "regular_price": 9000.0,
+            "short_term_price": 8000.0,
+            "short_term_regular": 10000.0,
+            "discount": 20,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Lounge Area", "Shared Toilet & Shower"],
+            "description": "Double sharing room on 2nd floor with common areas.",
+            "images": ["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800"],
             "created_at": datetime.now(timezone.utc)
         },
+        # Private Rooms (10% off)
         {
-            "room_id": "room_005",
-            "room_number": "301",
-            "room_type": "Suite",
-            "bed_type": "Double",
+            "room_id": "room_private_001",
+            "room_number": "P301",
+            "room_type": "Private",
+            "bed_type": "Double Bed",
             "capacity": 2,
             "floor": 3,
             "status": "available",
-            "price": 18000.0,
-            "amenities": ["WiFi", "Air Conditioning", "Private Bathroom", "Mini Fridge", "TV", "Balcony", "Kitchen"],
-            "description": "Premium suite with full amenities and balcony view.",
-            "images": [],
+            "price": 13500.0,  # Long term (6+ months)
+            "regular_price": 15000.0,
+            "short_term_price": 14400.0,
+            "short_term_regular": 16000.0,
+            "discount": 10,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Private Toilet & Shower", "Kitchenette"],
+            "description": "Private room (max 2 pax) with its own toilet, shower, and kitchenette. Fully furnished with double decked beds, mattresses, AC, tables, chairs, cabinets, and shower water heater.",
+            "images": ["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800"],
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "room_id": "room_private_002",
+            "room_number": "P302",
+            "room_type": "Private",
+            "bed_type": "Double Bed",
+            "capacity": 2,
+            "floor": 3,
+            "status": "available",
+            "price": 13500.0,
+            "regular_price": 15000.0,
+            "short_term_price": 14400.0,
+            "short_term_regular": 16000.0,
+            "discount": 10,
+            "lease_type": "Long Term (6+ months)",
+            "amenities": ["WiFi", "Air Conditioning", "Private Toilet & Shower", "Kitchenette"],
+            "description": "Private room with its own toilet, shower, and kitchenette.",
+            "images": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800"],
             "created_at": datetime.now(timezone.utc)
         }
     ]
     
-    # Insert rooms if not exists
+    # Clear existing rooms and insert new ones
+    await db.rooms.delete_many({})
     for room in sample_rooms:
-        existing = await db.rooms.find_one({"room_id": room["room_id"]})
-        if not existing:
-            await db.rooms.insert_one(room)
+        await db.rooms.insert_one(room)
     
     # Create sample announcements
     sample_announcements = [
