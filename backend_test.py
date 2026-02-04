@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://dorm-connect-9.preview.emergentagent.com"
+BASE_URL = "https://dorm-auth-staging.preview.emergentagent.com"
 SESSION_TOKEN = "test_session_1770212957374"
 
 def make_request(method, endpoint, headers=None, data=None, params=None):
