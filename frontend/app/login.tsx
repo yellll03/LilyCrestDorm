@@ -74,10 +74,11 @@ export default function LoginScreen() {
 
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="home" size={40} color="#F59E0B" />
-            </View>
-            <Text style={styles.logoText}>Lilycrest</Text>
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Title */}
