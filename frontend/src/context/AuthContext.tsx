@@ -154,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         login,
+        loginWithEmail,
         logout,
         checkAuth,
         processSessionId,
