@@ -366,6 +366,129 @@ async def create_session(request: Request, response: Response):
     
     return {"user": user_doc, "session_token": session_token}
 
+@api_router.post("/auth/login")
+async def email_password_login(request: Request, response: Response):
+    """Login with email and password - Only for verified tenants registered in Firebase"""
+    body = await request.json()
+    email = body.get("email")
+    password = body.get("password")
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    
+    # Verify user exists in Firebase Authentication
+    tenant_data = verify_tenant_in_firebase(email)
+    
+    if not tenant_data:
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied. Your account is not registered as an active tenant. Please contact the dormitory administrator."
+        )
+    
+    # Verify password using Firebase Admin SDK
+    # Note: Firebase Admin SDK doesn't directly support password verification
+    # We need to use Firebase Auth REST API for password verification
+    try:
+        firebase_api_key = os.environ.get('FIREBASE_API_KEY', '')
+        
+        if not firebase_api_key:
+            # If no API key configured, we'll verify user exists in Firebase Auth
+            # and create session (for development purposes)
+            logger.warning("FIREBASE_API_KEY not configured - skipping password verification")
+        else:
+            # Verify password using Firebase Auth REST API
+            async with httpx.AsyncClient() as http_client:
+                verify_response = await http_client.post(
+                    f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
+                    json={
+                        "email": email,
+                        "password": password,
+                        "returnSecureToken": True
+                    }
+                )
+                
+                if verify_response.status_code != 200:
+                    error_data = verify_response.json()
+                    error_message = error_data.get("error", {}).get("message", "INVALID_CREDENTIALS")
+                    
+                    if "INVALID_PASSWORD" in error_message or "INVALID_LOGIN_CREDENTIALS" in error_message:
+                        raise HTTPException(status_code=401, detail="Invalid email or password")
+                    elif "EMAIL_NOT_FOUND" in error_message:
+                        raise HTTPException(status_code=401, detail="Invalid email or password")
+                    elif "USER_DISABLED" in error_message:
+                        raise HTTPException(status_code=403, detail="This account has been disabled")
+                    elif "TOO_MANY_ATTEMPTS_TRY_LATER" in error_message:
+                        raise HTTPException(status_code=429, detail="Too many failed attempts. Please try again later.")
+                    else:
+                        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Firebase password verification error: {e}")
+        raise HTTPException(status_code=500, detail="Authentication service error")
+    
+    # User is verified - create or update user in MongoDB
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    session_token = f"session_{uuid.uuid4().hex}"
+    
+    # Check if user exists in MongoDB
+    existing_user = await db.users.find_one(
+        {"email": email},
+        {"_id": 0}
+    )
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
+        # Update Firebase tenant ID if needed
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "firebase_tenant_id": tenant_data.get("firebase_id")
+            }}
+        )
+    else:
+        # Create new user
+        new_user = User(
+            user_id=user_id,
+            email=email,
+            name=tenant_data.get("name") or email.split('@')[0],
+            phone=tenant_data.get("phone"),
+            picture=tenant_data.get("picture"),
+            firebase_tenant_id=tenant_data.get("firebase_id")
+        )
+        await db.users.insert_one(new_user.dict())
+    
+    # Create session
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    session = UserSession(
+        user_id=user_id,
+        session_token=session_token,
+        expires_at=expires_at
+    )
+    
+    # Remove old sessions for this user
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.user_sessions.insert_one(session.dict())
+    
+    # Set cookie
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=7 * 24 * 60 * 60  # 7 days
+    )
+    
+    # Get full user data
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    
+    logger.info(f"User {email} logged in successfully via email/password")
+    
+    return {"user": user_doc, "session_token": session_token}
+
 @api_router.get("/auth/me")
 async def get_current_user_route(request: Request):
     """Get current authenticated user"""
