@@ -145,6 +145,141 @@ def test_auth_endpoints():
     
     return None
 
+def test_email_password_login():
+    """Test Email/Password Login endpoint with all specified test cases"""
+    print("\n=== TESTING EMAIL/PASSWORD LOGIN ENDPOINT ===")
+    
+    test_results = []
+    session_token = None
+    
+    # Test 1: Valid tenant login
+    print("\n6a. Testing POST /api/auth/login with valid tenant")
+    login_data = {
+        "email": VALID_TENANT_EMAIL,
+        "password": VALID_TENANT_PASSWORD
+    }
+    result = make_request("POST", "/api/auth/login", data=login_data)
+    print(f"   Status: {result.get('status_code', 'ERROR')}")
+    
+    if result.get("status_code") == 200:
+        data = result.get('data', {})
+        if "user" in data and "session_token" in data:
+            session_token = data["session_token"]
+            user_data = data["user"]
+            print(f"   ✅ PASS: Valid tenant login successful")
+            print(f"   User ID: {user_data.get('user_id', 'N/A')}")
+            print(f"   Email: {user_data.get('email', 'N/A')}")
+            print(f"   Name: {user_data.get('name', 'N/A')}")
+            print(f"   Session Token: {session_token[:20]}...")
+            test_results.append(("Valid tenant login", True))
+        else:
+            print(f"   ❌ FAIL: Missing user or session_token in response")
+            test_results.append(("Valid tenant login", False))
+    else:
+        print(f"   ❌ FAIL: Expected 200 but got {result.get('status_code', 'ERROR')}")
+        if result.get('data'):
+            print(f"   Response: {result.get('data')}")
+        test_results.append(("Valid tenant login", False))
+    
+    # Test 2: Invalid tenant (not registered)
+    print("\n6b. Testing POST /api/auth/login with invalid tenant")
+    invalid_login_data = {
+        "email": INVALID_TENANT_EMAIL,
+        "password": INVALID_PASSWORD
+    }
+    result = make_request("POST", "/api/auth/login", data=invalid_login_data)
+    print(f"   Status: {result.get('status_code', 'ERROR')}")
+    
+    if result.get("status_code") == 403:
+        data = result.get('data', {})
+        if "access denied" in data.get("detail", "").lower():
+            print(f"   ✅ PASS: Invalid tenant correctly rejected")
+            test_results.append(("Invalid tenant rejection", True))
+        else:
+            print(f"   ❌ FAIL: Wrong error message: {data.get('detail', 'N/A')}")
+            test_results.append(("Invalid tenant rejection", False))
+    else:
+        print(f"   ❌ FAIL: Expected 403 but got {result.get('status_code', 'ERROR')}")
+        if result.get('data'):
+            print(f"   Response: {result.get('data')}")
+        test_results.append(("Invalid tenant rejection", False))
+    
+    # Test 3: Missing email
+    print("\n6c. Testing POST /api/auth/login with missing email")
+    missing_email_data = {"password": INVALID_PASSWORD}
+    result = make_request("POST", "/api/auth/login", data=missing_email_data)
+    print(f"   Status: {result.get('status_code', 'ERROR')}")
+    
+    if result.get("status_code") == 400:
+        print(f"   ✅ PASS: Missing email validation working")
+        test_results.append(("Missing email validation", True))
+    else:
+        print(f"   ❌ FAIL: Expected 400 but got {result.get('status_code', 'ERROR')}")
+        if result.get('data'):
+            print(f"   Response: {result.get('data')}")
+        test_results.append(("Missing email validation", False))
+    
+    # Test 4: Missing password
+    print("\n6d. Testing POST /api/auth/login with missing password")
+    missing_password_data = {"email": "test@test.com"}
+    result = make_request("POST", "/api/auth/login", data=missing_password_data)
+    print(f"   Status: {result.get('status_code', 'ERROR')}")
+    
+    if result.get("status_code") == 400:
+        print(f"   ✅ PASS: Missing password validation working")
+        test_results.append(("Missing password validation", True))
+    else:
+        print(f"   ❌ FAIL: Expected 400 but got {result.get('status_code', 'ERROR')}")
+        if result.get('data'):
+            print(f"   Response: {result.get('data')}")
+        test_results.append(("Missing password validation", False))
+    
+    # Test 5: Verify session token works with /api/auth/me
+    if session_token:
+        print("\n6e. Testing GET /api/auth/me with new session token")
+        headers = {"Authorization": f"Bearer {session_token}"}
+        result = make_request("GET", "/api/auth/me", headers=headers)
+        print(f"   Status: {result.get('status_code', 'ERROR')}")
+        
+        if result.get("status_code") == 200:
+            data = result.get('data', {})
+            if "user_id" in data and "email" in data:
+                print(f"   ✅ PASS: Session token verification successful")
+                print(f"   User ID: {data.get('user_id', 'N/A')}")
+                print(f"   Email: {data.get('email', 'N/A')}")
+                test_results.append(("Session token verification", True))
+            else:
+                print(f"   ❌ FAIL: Response missing required user fields")
+                test_results.append(("Session token verification", False))
+        else:
+            print(f"   ❌ FAIL: Expected 200 but got {result.get('status_code', 'ERROR')}")
+            if result.get('data'):
+                print(f"   Response: {result.get('data')}")
+            test_results.append(("Session token verification", False))
+    else:
+        print("\n6e. SKIP: Session token verification (no token from login)")
+        test_results.append(("Session token verification", False))
+    
+    # Print email/password login test summary
+    print(f"\n   === EMAIL/PASSWORD LOGIN TEST RESULTS ===")
+    passed_login_tests = sum(1 for _, success in test_results if success)
+    total_login_tests = len(test_results)
+    
+    for test_name, success in test_results:
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"   {test_name}: {status}")
+    
+    print(f"   Email/Password Login Tests: {passed_login_tests}/{total_login_tests} passed")
+    
+    # Return user data from original auth test or from login test
+    if session_token:
+        headers = {"Authorization": f"Bearer {session_token}"}
+        auth_result = make_request("GET", "/api/auth/me", headers=headers)
+        if auth_result.get("success"):
+            return auth_result.get('data', {})
+    
+    return None
+
 def test_dashboard_endpoint():
     """Test dashboard endpoint"""
     print("\n=== TESTING DASHBOARD ENDPOINT ===")
