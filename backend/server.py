@@ -1133,25 +1133,6 @@ async def seed_data():
             "created_at": datetime.now(timezone.utc)
         },
     ]
-        {
-            "faq_id": "faq_007",
-            "question": "How do I contact the management?",
-            "answer": "You can reach us through the Support section in the app, call the front desk at (02) 8123-4567, or email support@lilycrest.com.",
-            "category": "general",
-            "order": 1,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc)
-        },
-        {
-            "faq_id": "faq_008",
-            "question": "What is the move-out process?",
-            "answer": "Please notify management 30 days before your intended move-out date. Schedule a room inspection, settle all outstanding bills, and return your key on the last day.",
-            "category": "general",
-            "order": 2,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc)
-        }
-    ]
     
     for faq in sample_faqs:
         existing = await db.faqs.find_one({"faq_id": faq["faq_id"]})
