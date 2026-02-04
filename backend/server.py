@@ -1151,37 +1151,80 @@ async def seed_data():
     sample_announcements = [
         {
             "announcement_id": "ann_001",
-            "title": "Welcome to Lilycrest Dormitory!",
-            "content": "We're excited to have you as part of our community. Please familiarize yourself with the house rules and don't hesitate to contact staff if you need assistance.",
+            "title": "Welcome to Lilycrest Gil Puyat!",
+            "content": "We're excited to have you as part of our community at #7 Gil Puyat Ave. cor Marconi St. Brgy Palanan, Makati City. Please familiarize yourself with the house rules and don't hesitate to contact staff if you need assistance. Contact us at 0917 1000087.",
             "author_id": "admin",
             "priority": "high",
+            "category": "General",
             "is_active": True,
             "created_at": datetime.now(timezone.utc)
         },
         {
             "announcement_id": "ann_002",
+            "title": "🎉 DISCOUNTED Monthly Rates Available!",
+            "content": "Avail our discounted monthly rates! Quadruple Sharing: 10% OFF (₱5,400/pax long term). Double Sharing: 20% OFF (₱7,200/pax long term). Private Room: 10% OFF (₱13,500/room long term). All rooms are FULLY FURNISHED with double decked beds, AC, tables, chairs, cabinets, and shower water heater.",
+            "author_id": "admin",
+            "priority": "high",
+            "category": "Promo",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc) - timedelta(hours=2)
+        },
+        {
+            "announcement_id": "ann_003",
             "title": "Monthly Rent Payment Reminder",
-            "content": "Please remember that monthly rent is due on the 1st of each month. You can pay via the app or at the front desk.",
+            "content": "Please remember that monthly rent is due on the 1st of each month. You can pay via the app or at the front desk. Late payments may incur additional charges.",
             "author_id": "admin",
             "priority": "normal",
+            "category": "Billing",
             "is_active": True,
             "created_at": datetime.now(timezone.utc) - timedelta(days=2)
         },
         {
-            "announcement_id": "ann_003",
-            "title": "Scheduled Maintenance Notice",
-            "content": "Water service will be temporarily interrupted on Saturday from 9 AM to 12 PM for scheduled maintenance. We apologize for any inconvenience.",
+            "announcement_id": "ann_004",
+            "title": "🔧 Scheduled Maintenance Notice",
+            "content": "Water service will be temporarily interrupted on Saturday from 9 AM to 12 PM for scheduled maintenance of the water heater systems. We apologize for any inconvenience.",
             "author_id": "admin",
             "priority": "high",
+            "category": "Maintenance",
             "is_active": True,
             "created_at": datetime.now(timezone.utc) - timedelta(days=1)
+        },
+        {
+            "announcement_id": "ann_005",
+            "title": "WiFi Password Update",
+            "content": "The WiFi password has been updated for security purposes. Please visit the front desk to get the new password. Remember: Do not share the WiFi password with non-residents.",
+            "author_id": "admin",
+            "priority": "normal",
+            "category": "General",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc) - timedelta(days=3)
+        },
+        {
+            "announcement_id": "ann_006",
+            "title": "🎊 Community Event: Movie Night",
+            "content": "Join us this Friday at 7 PM in the lounge area for our monthly movie night! Snacks will be provided. This is a great opportunity to meet your fellow residents.",
+            "author_id": "admin",
+            "priority": "normal",
+            "category": "Event",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc) - timedelta(days=4)
+        },
+        {
+            "announcement_id": "ann_007",
+            "title": "Quiet Hours Reminder",
+            "content": "Please be reminded that quiet hours are from 10 PM to 7 AM. Keep noise levels to a minimum during these hours to respect your fellow residents.",
+            "author_id": "admin",
+            "priority": "low",
+            "category": "Rules",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc) - timedelta(days=5)
         }
     ]
     
+    # Clear existing announcements and insert new ones
+    await db.announcements.delete_many({})
     for announcement in sample_announcements:
-        existing = await db.announcements.find_one({"announcement_id": announcement["announcement_id"]})
-        if not existing:
-            await db.announcements.insert_one(announcement)
+        await db.announcements.insert_one(announcement)
     
     # Create sample FAQs based on Lilycrest policies
     sample_faqs = [
