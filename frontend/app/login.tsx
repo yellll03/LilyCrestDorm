@@ -258,13 +258,21 @@ export default function LoginScreen() {
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
 
+            {/* Login Error Message */}
+            {loginError ? (
+              <View style={styles.loginErrorContainer}>
+                <Ionicons name="alert-circle" size={18} color="#FFFFFF" />
+                <Text style={styles.loginErrorText}>{loginError}</Text>
+              </View>
+            ) : null}
+
             {/* Sign In Button */}
             <TouchableOpacity
-              style={[styles.signInButton, (!isEmailValid || !isPasswordValid) && styles.signInButtonDisabled]}
+              style={[styles.signInButton, (!isEmailValid || !isPasswordValid || isEmailLoading) && styles.signInButtonDisabled]}
               onPress={handleLogin}
-              disabled={isLoading}
+              disabled={isLoading || isEmailLoading || !isEmailValid || !isPasswordValid}
             >
-              {isLoading ? (
+              {isEmailLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.signInButtonText}>Sign In</Text>
