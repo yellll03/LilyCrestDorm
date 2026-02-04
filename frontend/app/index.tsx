@@ -127,24 +127,25 @@ export default function SplashScreen() {
       resizeMode="cover"
     >
       <View style={styles.overlay}>
-        <View style={styles.content}>
-          {/* Logo Section */}
-          <Animated.View style={[
-            styles.logoSection,
-            showContent && { 
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}>
-            <View style={styles.logoContainer}>
-              <View style={styles.logoIcon}>
-                <Ionicons name="home" size={32} color="#FFFFFF" />
-              </View>
+        {/* Logo Section at Top */}
+        <Animated.View style={[
+          styles.logoSection,
+          showContent && { 
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Ionicons name="home" size={32} color="#FFFFFF" />
             </View>
-            <Text style={styles.brandName}>Lilycrest</Text>
-            <Text style={styles.brandTagline}>Dormitory</Text>
-          </Animated.View>
+          </View>
+          <Text style={styles.brandName}>Lilycrest</Text>
+          <Text style={styles.brandTagline}>Dormitory</Text>
+        </Animated.View>
 
+        {/* Content Section at Bottom */}
+        <View style={styles.content}>
           {/* Text Section */}
           <Animated.View style={[
             styles.textContainer,
