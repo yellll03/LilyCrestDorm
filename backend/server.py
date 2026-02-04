@@ -246,8 +246,6 @@ async def get_current_user(request: Request) -> Optional[User]:
 def verify_tenant_in_firebase(email: str) -> dict:
     """Check if email exists in Firebase Authentication (registered users)"""
     try:
-        from firebase_admin import auth
-        
         # Try to get user by email from Firebase Authentication
         user = auth.get_user_by_email(email)
         
