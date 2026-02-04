@@ -207,7 +207,8 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(30, 58, 95, 0.85)',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    paddingTop: 80,
   },
   content: {
     paddingHorizontal: 28,
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   logoContainer: {
     marginBottom: 12,
