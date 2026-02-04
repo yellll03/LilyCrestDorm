@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { api } from '../services/api';
 
 interface User {
@@ -69,8 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem('session_token', session_token);
       setUser(userData);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Process session error:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 403) {
+        const message = error.response?.data?.detail || 
+          'Your account is not registered as an active tenant. Please contact the dormitory administrator.';
+        Alert.alert('Access Denied', message);
+      } else if (error.response?.status === 401) {
+        Alert.alert('Authentication Failed', 'Invalid session. Please try logging in again.');
+      } else {
+        Alert.alert('Error', 'Unable to sign in. Please try again later.');
+      }
       return false;
     } finally {
       setIsLoading(false);
