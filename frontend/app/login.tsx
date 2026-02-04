@@ -43,13 +43,15 @@ const validatePassword = (password: string): { valid: boolean; error: string } =
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { loginWithEmail, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [touched, setTouched] = useState({ email: false, password: false });
+  const [loginError, setLoginError] = useState('');
 
   // Real-time validation
   useEffect(() => {
@@ -65,6 +67,13 @@ export default function LoginScreen() {
       setErrors(prev => ({ ...prev, password: passwordValidation.error }));
     }
   }, [password, touched.password]);
+
+  // Clear login error when user types
+  useEffect(() => {
+    if (loginError) {
+      setLoginError('');
+    }
+  }, [email, password]);
 
   const handleEmailBlur = () => {
     setTouched(prev => ({ ...prev, email: true }));
@@ -89,12 +98,22 @@ export default function LoginScreen() {
       return;
     }
 
-    // For now, direct users to use Google Sign In since we use Firebase Auth
-    Alert.alert(
-      'Sign In Method',
-      'Please use "Continue with Google" to sign in. This ensures your account is verified as a registered tenant.',
-      [{ text: 'OK' }]
-    );
+    setIsEmailLoading(true);
+    setLoginError('');
+    
+    try {
+      const result = await loginWithEmail(email.trim().toLowerCase(), password);
+      
+      if (result.success) {
+        router.replace('/(tabs)/dashboard');
+      } else {
+        setLoginError(result.error || 'Login failed. Please try again.');
+      }
+    } catch (error) {
+      setLoginError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsEmailLoading(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
