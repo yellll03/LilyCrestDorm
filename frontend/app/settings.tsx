@@ -88,12 +88,12 @@ export default function SettingsScreen() {
     {
       icon: 'shield-checkmark',
       label: 'Privacy Policy',
-      onPress: () => Alert.alert('Privacy Policy', 'Your data is secure and protected. We only collect necessary information for dormitory management.'),
+      onPress: () => router.push('/privacy-policy'),
     },
     {
       icon: 'document-text',
       label: 'Terms of Service',
-      onPress: () => Alert.alert('Terms of Service', 'By using Lilycrest app, you agree to abide by the dormitory house rules and regulations.'),
+      onPress: () => router.push('/terms-of-service'),
     },
     {
       icon: 'trash',
