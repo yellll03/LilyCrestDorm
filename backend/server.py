@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, auth
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,7 +25,6 @@ db = client[os.environ['DB_NAME']]
 # Firebase initialization
 cred = credentials.Certificate(ROOT_DIR / 'firebase-credentials.json')
 firebase_admin.initialize_app(cred)
-firestore_db = firestore.client()
 
 # Create the main app without a prefix
 app = FastAPI()
