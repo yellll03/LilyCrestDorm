@@ -97,9 +97,9 @@ export default function ProfileScreen() {
   const menuItems = [
     { icon: 'person-outline', label: 'Edit Profile', onPress: () => setIsEditing(true) },
     { icon: 'card-outline', label: 'Billing History', onPress: () => {} },
-    { icon: 'document-text-outline', label: 'My Documents', onPress: () => {} },
+    { icon: 'document-text-outline', label: 'House Rules & Documents', onPress: () => router.push('/documents') },
     { icon: 'settings-outline', label: 'Settings', onPress: () => {} },
-    { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {} },
+    { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => router.push('/(tabs)/chatbot') },
     { icon: 'information-circle-outline', label: 'About', onPress: () => {} },
   ];
 
