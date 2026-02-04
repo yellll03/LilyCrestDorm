@@ -350,16 +350,20 @@ export default function ChatbotScreen() {
             {/* FAQ Quick Replies */}
             <View style={styles.faqContainer}>
               <Text style={styles.faqTitle}>Frequently Asked Questions:</Text>
-              {filteredFAQs.slice(0, 5).map((faq) => (
-                <TouchableOpacity
-                  key={faq.faq_id}
-                  style={styles.faqItem}
-                  onPress={() => handleFAQSelect(faq)}
-                >
-                  <Ionicons name="help-circle-outline" size={18} color="#1E3A5F" />
-                  <Text style={styles.faqQuestion}>{faq.question}</Text>
-                </TouchableOpacity>
-              ))}
+              {filteredFAQs.length === 0 ? (
+                <Text style={styles.noFaqText}>Loading FAQs...</Text>
+              ) : (
+                filteredFAQs.slice(0, 8).map((faq) => (
+                  <TouchableOpacity
+                    key={faq.faq_id}
+                    style={styles.faqItem}
+                    onPress={() => handleFAQSelect(faq)}
+                  >
+                    <Ionicons name="help-circle-outline" size={18} color="#1E3A5F" />
+                    <Text style={styles.faqQuestion}>{faq.question}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
 
             {/* Support Ticket CTA */}
