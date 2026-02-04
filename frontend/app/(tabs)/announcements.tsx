@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { apiService } from '../../src/services/api';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -20,14 +21,18 @@ interface Announcement {
   content: string;
   author_id: string;
   priority: string;
+  category?: string;
   is_active: boolean;
   created_at: string;
 }
 
 export default function AnnouncementsScreen() {
+  const router = useRouter();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchAnnouncements = async () => {
     try {
@@ -43,6 +48,19 @@ export default function AnnouncementsScreen() {
 
   useEffect(() => {
     fetchAnnouncements();
+  }, []);
+
+  // Real-time polling every 30 seconds
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchAnnouncements();
+    }, 30000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -76,6 +94,48 @@ export default function AnnouncementsScreen() {
     }
   };
 
+  const getCategoryColor = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'maintenance':
+        return { bg: '#FEF3C7', text: '#D97706' };
+      case 'billing':
+        return { bg: '#DBEAFE', text: '#2563EB' };
+      case 'event':
+        return { bg: '#F3E8FF', text: '#9333EA' };
+      case 'promo':
+        return { bg: '#DCFCE7', text: '#16A34A' };
+      case 'rules':
+        return { bg: '#FFE4E6', text: '#E11D48' };
+      case 'general':
+      default:
+        return { bg: '#F3F4F6', text: '#4B5563' };
+    }
+  };
+
+  const getCategoryIcon = (category: string): keyof typeof Ionicons.glyphMap => {
+    switch (category?.toLowerCase()) {
+      case 'maintenance':
+        return 'construct';
+      case 'billing':
+        return 'card';
+      case 'event':
+        return 'calendar';
+      case 'promo':
+        return 'pricetag';
+      case 'rules':
+        return 'document-text';
+      case 'general':
+      default:
+        return 'megaphone';
+    }
+  };
+
+  const categories = ['All', ...new Set(announcements.map((a) => a.category || 'General'))];
+
+  const filteredAnnouncements = selectedCategory && selectedCategory !== 'All'
+    ? announcements.filter((a) => (a.category || 'General') === selectedCategory)
+    : announcements;
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -88,63 +148,152 @@ export default function AnnouncementsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Announcements</Text>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Ionicons name="notifications-outline" size={24} color="#1E3A5F" />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#1E3A5F" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Announcements</Text>
+        <View style={styles.refreshIndicator}>
+          <Ionicons name="sync" size={18} color="#9CA3AF" />
+        </View>
       </View>
+
+      {/* Category Filter */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryFilter}
+        contentContainerStyle={styles.categoryFilterContent}
+      >
+        {categories.map((category) => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryChip,
+              (selectedCategory === category || (!selectedCategory && category === 'All')) &&
+                styles.categoryChipActive,
+            ]}
+            onPress={() => setSelectedCategory(category === 'All' ? null : category)}
+          >
+            <Ionicons
+              name={category === 'All' ? 'apps' : getCategoryIcon(category)}
+              size={14}
+              color={
+                (selectedCategory === category || (!selectedCategory && category === 'All'))
+                  ? '#FFFFFF'
+                  : '#6B7280'
+              }
+            />
+            <Text
+              style={[
+                styles.categoryChipText,
+                (selectedCategory === category || (!selectedCategory && category === 'All')) &&
+                  styles.categoryChipTextActive,
+              ]}
+            >
+              {category}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E3A5F']} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {announcements.length === 0 ? (
+        {/* Stats */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{announcements.length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statNumber, { color: '#EF4444' }]}>
+              {announcements.filter((a) => a.priority === 'high').length}
+            </Text>
+            <Text style={styles.statLabel}>Urgent</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statNumber, { color: '#22C55E' }]}>
+              {announcements.filter((a) => a.category === 'Event').length}
+            </Text>
+            <Text style={styles.statLabel}>Events</Text>
+          </View>
+        </View>
+
+        {filteredAnnouncements.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="megaphone-outline" size={48} color="#D1D5DB" />
             <Text style={styles.emptyText}>No announcements yet</Text>
           </View>
         ) : (
-          announcements.map((announcement) => (
-            <View key={announcement.announcement_id} style={styles.announcementCard}>
-              <View style={styles.announcementHeader}>
-                <View
-                  style={[
-                    styles.priorityIcon,
-                    { backgroundColor: `${getPriorityColor(announcement.priority)}15` },
-                  ]}
-                >
-                  <Ionicons
-                    name={getPriorityIcon(announcement.priority)}
-                    size={24}
-                    color={getPriorityColor(announcement.priority)}
-                  />
-                </View>
-                <View style={styles.announcementTitleContainer}>
-                  <Text style={styles.announcementTitle}>{announcement.title}</Text>
-                  <Text style={styles.announcementTime}>
-                    {formatDistanceToNow(new Date(announcement.created_at), {
-                      addSuffix: true,
-                    })}
-                  </Text>
-                </View>
-                {announcement.priority === 'high' && (
-                  <View style={styles.urgentBadge}>
-                    <Text style={styles.urgentText}>Urgent</Text>
+          filteredAnnouncements.map((announcement) => {
+            const categoryColor = getCategoryColor(announcement.category || 'General');
+            return (
+              <View key={announcement.announcement_id} style={styles.announcementCard}>
+                <View style={styles.announcementHeader}>
+                  <View
+                    style={[
+                      styles.priorityIcon,
+                      { backgroundColor: `${getPriorityColor(announcement.priority)}15` },
+                    ]}
+                  >
+                    <Ionicons
+                      name={getPriorityIcon(announcement.priority)}
+                      size={24}
+                      color={getPriorityColor(announcement.priority)}
+                    />
                   </View>
-                )}
+                  <View style={styles.announcementTitleContainer}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.announcementTitle} numberOfLines={2}>
+                        {announcement.title}
+                      </Text>
+                    </View>
+                    <Text style={styles.announcementTime}>
+                      {formatDistanceToNow(new Date(announcement.created_at), {
+                        addSuffix: true,
+                      })}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Category Badge */}
+                <View style={styles.badgeRow}>
+                  <View style={[styles.categoryBadge, { backgroundColor: categoryColor.bg }]}>
+                    <Ionicons
+                      name={getCategoryIcon(announcement.category || 'General')}
+                      size={12}
+                      color={categoryColor.text}
+                    />
+                    <Text style={[styles.categoryBadgeText, { color: categoryColor.text }]}>
+                      {announcement.category || 'General'}
+                    </Text>
+                  </View>
+                  {announcement.priority === 'high' && (
+                    <View style={styles.urgentBadge}>
+                      <Ionicons name="warning" size={12} color="#EF4444" />
+                      <Text style={styles.urgentText}>Urgent</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text style={styles.announcementContent}>{announcement.content}</Text>
+                
+                <View style={styles.announcementFooter}>
+                  <View style={styles.footerLeft}>
+                    <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
+                    <Text style={styles.announcementDate}>
+                      {format(new Date(announcement.created_at), 'MMM dd, yyyy • h:mm a')}
+                    </Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.announcementContent}>{announcement.content}</Text>
-              <View style={styles.announcementFooter}>
-                <Text style={styles.announcementDate}>
-                  Posted on {format(new Date(announcement.created_at), 'MMM dd, yyyy')}
-                </Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
 
         <View style={styles.bottomSpacer} />
@@ -170,30 +319,98 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1E3A5F',
-  },
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E3A5F',
+  },
+  refreshIndicator: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryFilter: {
+    backgroundColor: '#FFFFFF',
+    maxHeight: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  categoryFilterContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    marginRight: 8,
+    gap: 6,
+  },
+  categoryChipActive: {
+    backgroundColor: '#1E3A5F',
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+      },
+    }),
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1E3A5F',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
   emptyState: {
     alignItems: 'center',
@@ -206,14 +423,19 @@ const styles = StyleSheet.create({
   },
   announcementCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+      },
+    }),
   },
   announcementHeader: {
     flexDirection: 'row',
@@ -223,7 +445,7 @@ const styles = StyleSheet.create({
   priorityIcon: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -231,21 +453,47 @@ const styles = StyleSheet.create({
   announcementTitleContainer: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   announcementTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1E3A5F',
     marginBottom: 4,
+    flex: 1,
   },
   announcementTime: {
     fontSize: 12,
     color: '#9CA3AF',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    gap: 8,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    gap: 4,
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
   urgentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FEE2E2',
     paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    gap: 4,
   },
   urgentText: {
     fontSize: 12,
@@ -259,9 +507,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   announcementFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#F3F4F6',
     paddingTop: 12,
+  },
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   announcementDate: {
     fontSize: 12,
