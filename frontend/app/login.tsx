@@ -201,19 +201,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 32,
   },
-  logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  logoText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1E3A5F',
+  logoImage: {
+    width: 200,
+    height: 120,
   },
   title: {
     fontSize: 18,
