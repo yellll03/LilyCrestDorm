@@ -96,7 +96,10 @@ export default function DashboardScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => router.push('/(tabs)/announcements')}
+          >
             <Ionicons name="notifications-outline" size={24} color="#1E3A5F" />
           </TouchableOpacity>
         </View>
