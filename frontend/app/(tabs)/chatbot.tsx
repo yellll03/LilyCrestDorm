@@ -85,18 +85,28 @@ export default function ChatbotScreen() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      // FAQs don't require authentication
-      const [faqsRes, categoriesRes] = await Promise.all([
-        apiService.getFAQs(),
-        apiService.getFAQCategories(),
-      ]);
-      setFaqs(faqsRes.data);
-      setCategories(categoriesRes.data);
+      
+      // FAQs don't require authentication - fetch them separately
+      try {
+        const faqsRes = await apiService.getFAQs();
+        setFaqs(faqsRes.data || []);
+      } catch (faqError) {
+        console.log('FAQs fetch error:', faqError);
+        setFaqs([]);
+      }
+      
+      try {
+        const categoriesRes = await apiService.getFAQCategories();
+        setCategories(categoriesRes.data || []);
+      } catch (catError) {
+        console.log('Categories fetch error:', catError);
+        setCategories([]);
+      }
       
       // Tickets require authentication
       try {
         const ticketsRes = await apiService.getMyTickets();
-        setTickets(ticketsRes.data);
+        setTickets(ticketsRes.data || []);
       } catch (ticketError) {
         console.log('Tickets fetch skipped (user not authenticated)');
         setTickets([]);
