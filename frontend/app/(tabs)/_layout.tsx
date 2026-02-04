@@ -48,12 +48,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="announcements"
+        name="chatbot"
         options={{
-          title: 'Announce',
+          title: 'Support',
           tabBarIcon: ({ color, size, focused }) => (
             <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-              <Ionicons name="megaphone" size={size} color={focused ? '#FFFFFF' : color} />
+              <Ionicons name="chatbubbles" size={size} color={focused ? '#FFFFFF' : color} />
             </View>
           ),
         }}
@@ -67,6 +67,12 @@ export default function TabLayout() {
               <Ionicons name="person" size={size} color={focused ? '#FFFFFF' : color} />
             </View>
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="announcements"
+        options={{
+          href: null, // Hide from tab bar but keep accessible
         }}
       />
     </Tabs>
