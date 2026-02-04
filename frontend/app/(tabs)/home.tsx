@@ -307,6 +307,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  logoIcon: {
+    width: 32,
+    height: 32,
+  },
   logoText: {
     fontSize: 20,
     fontWeight: 'bold',
