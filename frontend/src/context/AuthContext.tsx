@@ -1,0 +1,125 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
+
+interface User {
+  user_id: string;
+  email: string;
+  name: string;
+  picture?: string;
+  phone?: string;
+  address?: string;
+  role: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+  processSessionId: (sessionId: string) => Promise<boolean>;
+  updateUser: (data: Partial<User>) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const checkAuth = async () => {
+    try {
+      setIsLoading(true);
+      const token = await AsyncStorage.getItem('session_token');
+      if (token) {
+        const response = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUser(response.data);
+      }
+    } catch (error) {
+      console.log('Auth check failed:', error);
+      await AsyncStorage.removeItem('session_token');
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      // For now, we use Google OAuth, so this is a placeholder
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const processSessionId = async (sessionId: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const response = await api.post('/auth/session', { session_id: sessionId });
+      const { user: userData, session_token } = response.data;
+      
+      await AsyncStorage.setItem('session_token', session_token);
+      setUser(userData);
+      return true;
+    } catch (error) {
+      console.error('Process session error:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      if (token) {
+        await api.post('/auth/logout', {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      await AsyncStorage.removeItem('session_token');
+      setUser(null);
+    }
+  };
+
+  const updateUser = (data: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...data });
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+        processSessionId,
+        updateUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
