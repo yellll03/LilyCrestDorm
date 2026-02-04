@@ -11,6 +11,8 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,6 +21,11 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Firebase initialization
+cred = credentials.Certificate(ROOT_DIR / 'firebase-credentials.json')
+firebase_admin.initialize_app(cred)
+firestore_db = firestore.client()
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -44,6 +51,7 @@ class User(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     role: str = "resident"  # resident, admin, staff
+    firebase_tenant_id: Optional[str] = None  # ID from Firebase tenant collection
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserUpdate(BaseModel):
@@ -164,6 +172,38 @@ class UserSession(BaseModel):
     expires_at: datetime
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# Support Ticket Models
+class SupportTicket(BaseModel):
+    ticket_id: str = Field(default_factory=lambda: f"ticket_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    subject: str
+    message: str
+    category: str = "general"  # general, billing, maintenance, complaint, other
+    status: str = "open"  # open, in_progress, resolved, closed
+    priority: str = "normal"  # low, normal, high
+    responses: List[dict] = []  # List of {responder_id, message, created_at}
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SupportTicketCreate(BaseModel):
+    subject: str
+    message: str
+    category: str = "general"
+    priority: str = "normal"
+
+class SupportTicketResponse(BaseModel):
+    message: str
+
+# FAQ Models
+class FAQ(BaseModel):
+    faq_id: str = Field(default_factory=lambda: f"faq_{uuid.uuid4().hex[:12]}")
+    question: str
+    answer: str
+    category: str = "general"  # general, billing, maintenance, rules, amenities
+    order: int = 0
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # ============== Helper Functions ==============
 
 async def get_current_user(request: Request) -> Optional[User]:
@@ -204,11 +244,31 @@ async def get_current_user(request: Request) -> Optional[User]:
     
     return User(**user_doc)
 
+def verify_tenant_in_firebase(email: str) -> dict:
+    """Check if email exists in Firebase 'tenant' collection"""
+    try:
+        # Query Firestore tenant collection for the email
+        tenant_ref = firestore_db.collection('tenant')
+        
+        # Try to find by email field
+        query = tenant_ref.where('email', '==', email).limit(1)
+        docs = query.get()
+        
+        for doc in docs:
+            tenant_data = doc.to_dict()
+            tenant_data['firebase_id'] = doc.id
+            return tenant_data
+        
+        return None
+    except Exception as e:
+        logger.error(f"Firebase verification error: {e}")
+        return None
+
 # ============== Auth Routes ==============
 
 @api_router.post("/auth/session")
 async def create_session(request: Request, response: Response):
-    """Exchange session_id for session_token"""
+    """Exchange session_id for session_token - Only for verified tenants"""
     body = await request.json()
     session_id = body.get("session_id")
     
@@ -216,8 +276,8 @@ async def create_session(request: Request, response: Response):
         raise HTTPException(status_code=400, detail="session_id is required")
     
     # Get user data from Emergent Auth
-    async with httpx.AsyncClient() as client:
-        auth_response = await client.get(
+    async with httpx.AsyncClient() as http_client:
+        auth_response = await http_client.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
             headers={"X-Session-ID": session_id}
         )
@@ -227,12 +287,23 @@ async def create_session(request: Request, response: Response):
         
         user_data = auth_response.json()
     
+    user_email = user_data.get("email")
+    
+    # Verify tenant exists in Firebase
+    tenant_data = verify_tenant_in_firebase(user_email)
+    
+    if not tenant_data:
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied. Your account is not registered as an active tenant. Please contact the dormitory administrator."
+        )
+    
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     session_token = user_data.get("session_token", f"session_{uuid.uuid4().hex}")
     
-    # Check if user exists
+    # Check if user exists in MongoDB
     existing_user = await db.users.find_one(
-        {"email": user_data["email"]},
+        {"email": user_email},
         {"_id": 0}
     )
     
@@ -243,16 +314,20 @@ async def create_session(request: Request, response: Response):
             {"user_id": user_id},
             {"$set": {
                 "name": user_data.get("name", existing_user.get("name")),
-                "picture": user_data.get("picture", existing_user.get("picture"))
+                "picture": user_data.get("picture", existing_user.get("picture")),
+                "firebase_tenant_id": tenant_data.get("firebase_id")
             }}
         )
     else:
-        # Create new user
+        # Create new user - only if verified tenant
         new_user = User(
             user_id=user_id,
-            email=user_data["email"],
-            name=user_data.get("name", "User"),
-            picture=user_data.get("picture")
+            email=user_email,
+            name=tenant_data.get("name") or user_data.get("name", "Tenant"),
+            picture=user_data.get("picture"),
+            phone=tenant_data.get("phone"),
+            address=tenant_data.get("address"),
+            firebase_tenant_id=tenant_data.get("firebase_id")
         )
         await db.users.insert_one(new_user.dict())
     
@@ -558,6 +633,142 @@ async def create_announcement(announcement_data: AnnouncementCreate, request: Re
     await db.announcements.insert_one(announcement.dict())
     return announcement.dict()
 
+# ============== FAQ Routes (Chatbot) ==============
+
+@api_router.get("/faqs")
+async def get_faqs(category: Optional[str] = None):
+    """Get all FAQs"""
+    query = {"is_active": True}
+    if category:
+        query["category"] = category
+    
+    faqs = await db.faqs.find(query, {"_id": 0}).sort("order", 1).to_list(100)
+    return faqs
+
+@api_router.get("/faqs/categories")
+async def get_faq_categories():
+    """Get all FAQ categories"""
+    categories = await db.faqs.distinct("category", {"is_active": True})
+    return categories
+
+@api_router.post("/faqs")
+async def create_faq(faq_data: dict, request: Request):
+    """Create a new FAQ (admin only)"""
+    user = await get_current_user(request)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    faq = FAQ(**faq_data)
+    await db.faqs.insert_one(faq.dict())
+    return faq.dict()
+
+# ============== Support Ticket Routes ==============
+
+@api_router.get("/tickets/me")
+async def get_my_tickets(request: Request, status: Optional[str] = None):
+    """Get current user's support tickets"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    query = {"user_id": user.user_id}
+    if status:
+        query["status"] = status
+    
+    tickets = await db.support_tickets.find(
+        query,
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return tickets
+
+@api_router.get("/tickets/{ticket_id}")
+async def get_ticket(ticket_id: str, request: Request):
+    """Get a specific support ticket"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    ticket = await db.support_tickets.find_one(
+        {"ticket_id": ticket_id, "user_id": user.user_id},
+        {"_id": 0}
+    )
+    
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    return ticket
+
+@api_router.post("/tickets")
+async def create_ticket(ticket_data: SupportTicketCreate, request: Request):
+    """Create a new support ticket"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    ticket = SupportTicket(
+        user_id=user.user_id,
+        subject=ticket_data.subject,
+        message=ticket_data.message,
+        category=ticket_data.category,
+        priority=ticket_data.priority
+    )
+    
+    await db.support_tickets.insert_one(ticket.dict())
+    return ticket.dict()
+
+@api_router.post("/tickets/{ticket_id}/respond")
+async def respond_to_ticket(ticket_id: str, response_data: SupportTicketResponse, request: Request):
+    """Add a response to a support ticket"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    ticket = await db.support_tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Check if user owns the ticket or is admin
+    if ticket["user_id"] != user.user_id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    response = {
+        "responder_id": user.user_id,
+        "responder_name": user.name,
+        "message": response_data.message,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.support_tickets.update_one(
+        {"ticket_id": ticket_id},
+        {
+            "$push": {"responses": response},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    updated_ticket = await db.support_tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    return updated_ticket
+
+@api_router.put("/tickets/{ticket_id}/status")
+async def update_ticket_status(ticket_id: str, status_data: dict, request: Request):
+    """Update ticket status (admin only for closing)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    new_status = status_data.get("status")
+    if new_status not in ["open", "in_progress", "resolved", "closed"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    await db.support_tickets.update_one(
+        {"ticket_id": ticket_id},
+        {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc)}}
+    )
+    
+    ticket = await db.support_tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    return ticket
+
 # ============== Dashboard Stats Routes ==============
 
 @api_router.get("/dashboard/me")
@@ -589,12 +800,18 @@ async def get_my_dashboard(request: Request):
         {"user_id": user.user_id, "status": {"$in": ["pending", "in_progress"]}}
     )
     
+    # Get open support tickets count
+    open_tickets = await db.support_tickets.count_documents(
+        {"user_id": user.user_id, "status": {"$in": ["open", "in_progress"]}}
+    )
+    
     return {
         "user": user.dict(),
         "assignment": assignment,
         "room": room,
         "latest_bill": latest_bill,
-        "active_maintenance_count": active_maintenance
+        "active_maintenance_count": active_maintenance,
+        "open_tickets_count": open_tickets
     }
 
 # ============== Seed Data Route (for development) ==============
@@ -717,6 +934,87 @@ async def seed_data():
         existing = await db.announcements.find_one({"announcement_id": announcement["announcement_id"]})
         if not existing:
             await db.announcements.insert_one(announcement)
+    
+    # Create sample FAQs
+    sample_faqs = [
+        {
+            "faq_id": "faq_001",
+            "question": "What are the payment methods accepted?",
+            "answer": "We accept cash, bank transfer, GCash, and Maya. You can pay at the front desk or through the app.",
+            "category": "billing",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_002",
+            "question": "When is the rent due?",
+            "answer": "Monthly rent is due on the 1st of each month. Late payments may incur a 5% penalty after the 7th day.",
+            "category": "billing",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_003",
+            "question": "How do I submit a maintenance request?",
+            "answer": "Go to the Services tab and tap 'Submit Maintenance Request'. Select the issue type, describe the problem, and submit. Our team will respond within 24-48 hours.",
+            "category": "maintenance",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_004",
+            "question": "What are the quiet hours?",
+            "answer": "Quiet hours are from 10:00 PM to 7:00 AM. Please keep noise levels low during these hours to respect other residents.",
+            "category": "rules",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_005",
+            "question": "Can I have visitors?",
+            "answer": "Visitors are allowed from 8:00 AM to 9:00 PM. All visitors must register at the front desk. Overnight guests require prior approval from management.",
+            "category": "rules",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_006",
+            "question": "What amenities are included?",
+            "answer": "All rooms include WiFi, air conditioning, bed with linens, study desk, and wardrobe. Common areas have laundry facilities, kitchen, and lounge.",
+            "category": "amenities",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_007",
+            "question": "How do I contact the management?",
+            "answer": "You can reach us through the Support section in the app, call the front desk at (02) 8123-4567, or email support@lilycrest.com.",
+            "category": "general",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_008",
+            "question": "What is the move-out process?",
+            "answer": "Please notify management 30 days before your intended move-out date. Schedule a room inspection, settle all outstanding bills, and return your key on the last day.",
+            "category": "general",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        }
+    ]
+    
+    for faq in sample_faqs:
+        existing = await db.faqs.find_one({"faq_id": faq["faq_id"]})
+        if not existing:
+            await db.faqs.insert_one(faq)
     
     return {"message": "Seed data created successfully"}
 
