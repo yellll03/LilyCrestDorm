@@ -174,11 +174,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "POST/GET maintenance requests implemented"
+      - working: true
+        agent: "testing"
+        comment: "GET /api/maintenance/me returns existing requests correctly, POST /api/maintenance successfully creates new request (maint_fd5065aca0de) with Plumbing/high urgency/pending status"
 
   - task: "Announcements Endpoint"
     implemented: true
