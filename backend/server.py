@@ -1226,6 +1226,73 @@ async def seed_data():
     for announcement in sample_announcements:
         await db.announcements.insert_one(announcement)
     
+    # Create sample billing records for testing
+    # First, get a sample user to create bills for
+    sample_user = await db.users.find_one({})
+    if sample_user:
+        sample_billing = [
+            {
+                "billing_id": "bill_001",
+                "user_id": sample_user["user_id"],
+                "amount": 5400.0,
+                "description": "Monthly Rent - February 2026",
+                "due_date": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+                "status": "pending",
+                "payment_method": None,
+                "payment_date": None,
+                "created_at": datetime.now(timezone.utc)
+            },
+            {
+                "billing_id": "bill_002",
+                "user_id": sample_user["user_id"],
+                "amount": 850.0,
+                "description": "Electricity Bill - January 2026",
+                "due_date": (datetime.now(timezone.utc) + timedelta(days=10)).isoformat(),
+                "status": "pending",
+                "payment_method": None,
+                "payment_date": None,
+                "created_at": datetime.now(timezone.utc)
+            },
+            {
+                "billing_id": "bill_003",
+                "user_id": sample_user["user_id"],
+                "amount": 5400.0,
+                "description": "Monthly Rent - January 2026",
+                "due_date": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+                "status": "paid",
+                "payment_method": "GCash",
+                "payment_date": (datetime.now(timezone.utc) - timedelta(days=32)).isoformat(),
+                "created_at": datetime.now(timezone.utc) - timedelta(days=35)
+            },
+            {
+                "billing_id": "bill_004",
+                "user_id": sample_user["user_id"],
+                "amount": 720.0,
+                "description": "Electricity Bill - December 2025",
+                "due_date": (datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+                "status": "paid",
+                "payment_method": "Bank Transfer",
+                "payment_date": (datetime.now(timezone.utc) - timedelta(days=62)).isoformat(),
+                "created_at": datetime.now(timezone.utc) - timedelta(days=65)
+            },
+            {
+                "billing_id": "bill_005",
+                "user_id": sample_user["user_id"],
+                "amount": 5400.0,
+                "description": "Monthly Rent - December 2025",
+                "due_date": (datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+                "status": "paid",
+                "payment_method": "Cash",
+                "payment_date": (datetime.now(timezone.utc) - timedelta(days=61)).isoformat(),
+                "created_at": datetime.now(timezone.utc) - timedelta(days=65)
+            }
+        ]
+        
+        # Clear existing billing and insert new ones
+        await db.billing.delete_many({})
+        for bill in sample_billing:
+            await db.billing.insert_one(bill)
+    
     # Create sample FAQs based on Lilycrest policies
     sample_faqs = [
         # Payment & Billing FAQs
