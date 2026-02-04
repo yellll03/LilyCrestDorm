@@ -8,6 +8,12 @@ from datetime import datetime
 BASE_URL = "https://dorm-auth-staging.preview.emergentagent.com"
 SESSION_TOKEN = "test_session_1770212957374"
 
+# Test data for Email/Password Login
+VALID_TENANT_EMAIL = "p.vincebryn@gmail.com"
+VALID_TENANT_PASSWORD = "testpassword"
+INVALID_TENANT_EMAIL = "nonexistent@test.com"
+INVALID_PASSWORD = "test"
+
 def make_request(method, endpoint, headers=None, data=None, params=None):
     """Make HTTP request and return response details"""
     url = f"{BASE_URL}{endpoint}"
