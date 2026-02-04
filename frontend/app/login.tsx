@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,28 @@ import { useAuth } from '../src/context/AuthContext';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 
+// Validation helpers
+const validateEmail = (email: string): { valid: boolean; error: string } => {
+  if (!email.trim()) {
+    return { valid: false, error: 'Email is required' };
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { valid: false, error: 'Please enter a valid email address' };
+  }
+  return { valid: true, error: '' };
+};
+
+const validatePassword = (password: string): { valid: boolean; error: string } => {
+  if (!password) {
+    return { valid: false, error: 'Password is required' };
+  }
+  if (password.length < 6) {
+    return { valid: false, error: 'Password must be at least 6 characters' };
+  }
+  return { valid: true, error: '' };
+};
+
 export default function LoginScreen() {
   const router = useRouter();
   const { login, isLoading } = useAuth();
@@ -26,18 +48,56 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '' });
+  const [touched, setTouched] = useState({ email: false, password: false });
+
+  // Real-time validation
+  useEffect(() => {
+    if (touched.email) {
+      const emailValidation = validateEmail(email);
+      setErrors(prev => ({ ...prev, email: emailValidation.error }));
+    }
+  }, [email, touched.email]);
+
+  useEffect(() => {
+    if (touched.password) {
+      const passwordValidation = validatePassword(password);
+      setErrors(prev => ({ ...prev, password: passwordValidation.error }));
+    }
+  }, [password, touched.password]);
+
+  const handleEmailBlur = () => {
+    setTouched(prev => ({ ...prev, email: true }));
+  };
+
+  const handlePasswordBlur = () => {
+    setTouched(prev => ({ ...prev, password: true }));
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+    // Validate all fields
+    const emailValidation = validateEmail(email);
+    const passwordValidation = validatePassword(password);
+    
+    setTouched({ email: true, password: true });
+    setErrors({
+      email: emailValidation.error,
+      password: passwordValidation.error,
+    });
+
+    if (!emailValidation.valid || !passwordValidation.valid) {
       return;
     }
-    // For demo purposes, we'll use Google OAuth
-    Alert.alert('Info', 'Please use Google Sign In for authentication');
+
+    // For now, direct users to use Google Sign In since we use Firebase Auth
+    Alert.alert(
+      'Sign In Method',
+      'Please use "Continue with Google" to sign in. This ensures your account is verified as a registered tenant.',
+      [{ text: 'OK' }]
+    );
   };
 
   const handleGoogleLogin = async () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     setIsGoogleLoading(true);
     try {
       const baseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 
@@ -48,11 +108,18 @@ export default function LoginScreen() {
       await Linking.openURL(authUrl);
     } catch (error) {
       console.error('Google login error:', error);
-      Alert.alert('Error', 'Failed to open Google login');
+      Alert.alert('Error', 'Failed to open Google login. Please try again.');
     } finally {
       setIsGoogleLoading(false);
     }
   };
+
+  const handleForgotPassword = () => {
+    router.push('/forgot-password');
+  };
+
+  const isEmailValid = email.trim() && !errors.email;
+  const isPasswordValid = password && !errors.password;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,6 +130,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Back Button */}
           <TouchableOpacity
@@ -82,53 +150,98 @@ export default function LoginScreen() {
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Sign in to your account</Text>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to access your tenant portal</Text>
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <Text style={styles.label}>Email Address</Text>
+              <View style={[
+                styles.inputWrapper,
+                touched.email && errors.email && styles.inputWrapperError,
+                touched.email && isEmailValid && styles.inputWrapperSuccess,
+              ]}>
+                <Ionicons 
+                  name="mail-outline" 
+                  size={20} 
+                  color={touched.email && errors.email ? '#EF4444' : '#9CA3AF'} 
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#9CA3AF"
+                  value={email}
+                  onChangeText={setEmail}
+                  onBlur={handleEmailBlur}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {touched.email && isEmailValid && (
+                  <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                )}
+              </View>
+              {touched.email && errors.email ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
+            {/* Password Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
+              <View style={[
+                styles.inputWrapper,
+                touched.password && errors.password && styles.inputWrapperError,
+                touched.password && isPasswordValid && styles.inputWrapperSuccess,
+              ]}>
+                <Ionicons 
+                  name="lock-closed-outline" 
+                  size={20} 
+                  color={touched.password && errors.password ? '#EF4444' : '#9CA3AF'} 
+                  style={styles.inputIcon}
+                />
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your Password"
+                  style={styles.input}
+                  placeholder="Enter your password"
                   placeholderTextColor="#9CA3AF"
                   value={password}
                   onChangeText={setPassword}
+                  onBlur={handlePasswordBlur}
                   secureTextEntry={!showPassword}
                 />
                 <TouchableOpacity
-                  style={styles.eyeButton}
                   onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
                     color="#9CA3AF"
                   />
                 </TouchableOpacity>
               </View>
+              {touched.password && errors.password ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
+              ) : null}
             </View>
 
-            <TouchableOpacity style={styles.forgotPassword}>
+            {/* Forgot Password */}
+            <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
 
+            {/* Sign In Button */}
             <TouchableOpacity
-              style={styles.signInButton}
+              style={[styles.signInButton, (!isEmailValid || !isPasswordValid) && styles.signInButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
             >
@@ -143,7 +256,7 @@ export default function LoginScreen() {
           {/* Divider */}
           <View style={styles.dividerContainer}>
             <View style={styles.divider} />
-            <Text style={styles.dividerText}>Or continue with</Text>
+            <Text style={styles.dividerText}>or continue with</Text>
             <View style={styles.divider} />
           </View>
 
@@ -157,18 +270,21 @@ export default function LoginScreen() {
               <ActivityIndicator color="#1E3A5F" />
             ) : (
               <>
-                <Ionicons name="logo-google" size={20} color="#DB4437" />
+                <Image
+                  source={{ uri: 'https://www.google.com/favicon.ico' }}
+                  style={styles.googleIcon}
+                />
                 <Text style={styles.googleButtonText}>Continue with Google</Text>
               </>
             )}
           </TouchableOpacity>
 
-          {/* Sign Up Link */}
-          <View style={styles.signUpContainer}>
-            <Text style={styles.signUpText}>Don't have an account? </Text>
-            <TouchableOpacity>
-              <Text style={styles.signUpLink}>Sign up here</Text>
-            </TouchableOpacity>
+          {/* Tenant Notice */}
+          <View style={styles.noticeContainer}>
+            <Ionicons name="information-circle" size={18} color="#F97316" />
+            <Text style={styles.noticeText}>
+              Only registered tenants can access this app. Contact the admin office if you need assistance.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -191,23 +307,32 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoContainer: {
     alignItems: 'center',
     marginTop: 24,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logoImage: {
-    width: 200,
-    height: 120,
+    width: 180,
+    height: 100,
   },
   title: {
-    fontSize: 18,
-    color: '#4B5563',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1E3A5F',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6B7280',
     textAlign: 'center',
     marginBottom: 32,
   },
@@ -218,50 +343,72 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E3A5F',
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  passwordContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-  },
-  passwordInput: {
-    flex: 1,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 16,
+  },
+  inputWrapperError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  inputWrapperSuccess: {
+    borderColor: '#22C55E',
+    backgroundColor: '#F0FDF4',
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
     paddingVertical: 14,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1F2937',
   },
-  eyeButton: {
-    paddingHorizontal: 16,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: '#F59E0B',
+    color: '#F97316',
     fontSize: 14,
+    fontWeight: '600',
   },
   signInButton: {
     backgroundColor: '#1E3A5F',
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#1E3A5F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  signInButtonDisabled: {
+    backgroundColor: '#94A3B8',
+    shadowOpacity: 0,
   },
   signInButtonText: {
     color: '#FFFFFF',
@@ -280,36 +427,42 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     paddingHorizontal: 16,
-    color: '#6B7280',
-    fontSize: 14,
+    color: '#9CA3AF',
+    fontSize: 13,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
     gap: 12,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
   },
   googleButtonText: {
     color: '#374151',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
-  signUpContainer: {
+  noticeContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 16,
     marginTop: 24,
+    gap: 10,
   },
-  signUpText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  signUpLink: {
-    color: '#F59E0B',
-    fontSize: 14,
-    fontWeight: '500',
+  noticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#9A3412',
+    lineHeight: 18,
   },
 });
