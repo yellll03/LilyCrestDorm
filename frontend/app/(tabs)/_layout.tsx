@@ -1,26 +1,35 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#1E3A5F',
+        tabBarActiveTintColor: '#F97316',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-              <Ionicons name="grid" size={size} color={focused ? '#FFFFFF' : color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.tabItem}>
+              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                <Ionicons 
+                  name={focused ? "grid" : "grid-outline"} 
+                  size={22} 
+                  color={focused ? '#F97316' : '#6B7280'} 
+                />
+              </View>
+              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                Dashboard
+              </Text>
             </View>
           ),
         }}
@@ -29,9 +38,18 @@ export default function TabLayout() {
         name="services"
         options={{
           title: 'Services',
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-              <Ionicons name="construct" size={size} color={focused ? '#FFFFFF' : color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.tabItem}>
+              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                <Ionicons 
+                  name={focused ? "construct" : "construct-outline"} 
+                  size={22} 
+                  color={focused ? '#F97316' : '#6B7280'} 
+                />
+              </View>
+              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                Services
+              </Text>
             </View>
           ),
         }}
@@ -40,9 +58,11 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.centerIconContainer, focused && styles.activeCenterIcon]}>
-              <Ionicons name="home" size={28} color="#FFFFFF" />
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.centerTabItem}>
+              <View style={styles.centerButton}>
+                <Ionicons name="home" size={26} color="#FFFFFF" />
+              </View>
             </View>
           ),
         }}
@@ -51,9 +71,18 @@ export default function TabLayout() {
         name="chatbot"
         options={{
           title: 'Support',
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-              <Ionicons name="chatbubbles" size={size} color={focused ? '#FFFFFF' : color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.tabItem}>
+              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                <Ionicons 
+                  name={focused ? "chatbubbles" : "chatbubbles-outline"} 
+                  size={22} 
+                  color={focused ? '#F97316' : '#6B7280'} 
+                />
+              </View>
+              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                Support
+              </Text>
             </View>
           ),
         }}
@@ -62,9 +91,18 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-              <Ionicons name="person" size={size} color={focused ? '#FFFFFF' : color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.tabItem}>
+              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                <Ionicons 
+                  name={focused ? "person" : "person-outline"} 
+                  size={22} 
+                  color={focused ? '#F97316' : '#6B7280'} 
+                />
+              </View>
+              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                Profile
+              </Text>
             </View>
           ),
         }}
@@ -81,49 +119,82 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#1E3A5F',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: Platform.OS === 'ios' ? 90 : 70,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+    backgroundColor: '#FFFFFF',
+    height: Platform.OS === 'ios' ? 88 : 68,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+    paddingHorizontal: 8,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     borderTopWidth: 0,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#1E3A5F',
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 20,
+      },
+      web: {
+        boxShadow: '0 -8px 24px rgba(30, 58, 95, 0.08)',
+      },
+    }),
   },
-  tabBarLabel: {
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  iconWrapper: {
+    width: 44,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  iconWrapperActive: {
+    backgroundColor: '#FFF7ED',
+  },
+  tabLabel: {
     fontSize: 10,
     fontWeight: '500',
+    color: '#9CA3AF',
+    marginTop: 2,
   },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  tabLabelActive: {
+    color: '#F97316',
+    fontWeight: '600',
+  },
+  centerTabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -32,
+  },
+  centerButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#1E3A5F',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  activeIconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  centerIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -28,
-    borderWidth: 4,
-    borderColor: '#1E3A5F',
-  },
-  activeCenterIcon: {
-    backgroundColor: '#F59E0B',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#1E3A5F',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 12,
+      },
+      web: {
+        boxShadow: '0 8px 20px rgba(30, 58, 95, 0.35)',
+      },
+    }),
   },
 });
