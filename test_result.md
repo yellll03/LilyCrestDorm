@@ -342,7 +342,6 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Email Password Login Endpoint"
     - "Login Screen with Email/Password"
     - "Real-time Form Validation"
   stuck_tasks: []
