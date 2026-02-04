@@ -942,12 +942,13 @@ async def seed_data():
         if not existing:
             await db.announcements.insert_one(announcement)
     
-    # Create sample FAQs
+    # Create sample FAQs based on Lilycrest policies
     sample_faqs = [
+        # Payment & Billing FAQs
         {
             "faq_id": "faq_001",
-            "question": "What are the payment methods accepted?",
-            "answer": "We accept cash, bank transfer, GCash, and Maya. You can pay at the front desk or through the app.",
+            "question": "When is my rent due?",
+            "answer": "Your rent due date is based on your move-in date. For example, if you moved in on January 5, your rent is due every 5th of the month.",
             "category": "billing",
             "order": 1,
             "is_active": True,
@@ -955,8 +956,8 @@ async def seed_data():
         },
         {
             "faq_id": "faq_002",
-            "question": "When is the rent due?",
-            "answer": "Monthly rent is due on the 1st of each month. Late payments may incur a 5% penalty after the 7th day.",
+            "question": "What is the grace period for payment?",
+            "answer": "You have a 2-day grace period after your due date. After the grace period, a late payment penalty of ₱50 per day will be applied.",
             "category": "billing",
             "order": 2,
             "is_active": True,
@@ -964,40 +965,174 @@ async def seed_data():
         },
         {
             "faq_id": "faq_003",
-            "question": "How do I submit a maintenance request?",
-            "answer": "Go to the Services tab and tap 'Submit Maintenance Request'. Select the issue type, describe the problem, and submit. Our team will respond within 24-48 hours.",
+            "question": "What payment methods are accepted?",
+            "answer": "We accept online payments and bank deposits only (BDO or BPI). Cash payments are not accepted. Please always use your name as reference when making deposits.",
+            "category": "billing",
+            "order": 3,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_004",
+            "question": "How is electricity billed?",
+            "answer": "Each unit has an individual meter. Meter readings are taken every 15th of the month by the building engineer. You will be billed based on your actual consumption.",
+            "category": "billing",
+            "order": 4,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_005",
+            "question": "Is water included in my rent?",
+            "answer": "For quadruple and shared rooms: Yes, water is included in your rental rate. For private rooms: Water is billed based on actual consumption. For double rooms: Water charges are divided equally between occupants.",
+            "category": "billing",
+            "order": 5,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Visitor Policy FAQs
+        {
+            "faq_id": "faq_006",
+            "question": "Can I have visitors?",
+            "answer": "Quadruple/Shared rooms: Visitors are only allowed at the ground floor seating area, not in rooms or floors. Private rooms: Visitors are allowed in rooms but NO overnight stays permitted. All visitors must be entertained in designated areas only.",
+            "category": "rules",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_007",
+            "question": "Where can I entertain visitors?",
+            "answer": "A visitor seating area is provided at the ground floor. All visitors must stay in this designated area. Males are not allowed on female floors and vice versa.",
+            "category": "rules",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # RFID & Access FAQs
+        {
+            "faq_id": "faq_008",
+            "question": "What if I lose my RFID card?",
+            "answer": "Report the loss immediately to the admin office. A replacement fee of ₱1,000 will be charged. Do not share or lend your RFID card to others - it may be deactivated for security reasons.",
+            "category": "general",
+            "order": 1,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_009",
+            "question": "Can my RFID card be deactivated?",
+            "answer": "Yes, your RFID card may be deactivated if you have delinquent payments. Please ensure your payments are up to date to maintain access to the building.",
+            "category": "general",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Room Rules FAQs
+        {
+            "faq_id": "faq_010",
+            "question": "Can I cook in my room?",
+            "answer": "No cooking is allowed in the rooms. Only reheating food in the microwave is permitted. Please use the designated kitchen and dining areas for food preparation.",
+            "category": "rules",
+            "order": 3,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_011",
+            "question": "Can I transfer to another room?",
+            "answer": "Room transfers require management approval. Please submit a request through the Support section if you wish to transfer to a different room.",
+            "category": "rules",
+            "order": 4,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_012",
+            "question": "Are pets allowed?",
+            "answer": "No, pets are not allowed in any Lilycrest dormitory branch.",
+            "category": "rules",
+            "order": 5,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Maintenance FAQs
+        {
+            "faq_id": "faq_013",
+            "question": "How do I report a maintenance issue?",
+            "answer": "Go to the Services tab and tap 'Submit Maintenance Request'. Select the issue type, describe the problem, and submit. Our maintenance team will respond within 24-48 hours.",
             "category": "maintenance",
             "order": 1,
             "is_active": True,
             "created_at": datetime.now(timezone.utc)
         },
         {
-            "faq_id": "faq_004",
-            "question": "What are the quiet hours?",
-            "answer": "Quiet hours are from 10:00 PM to 7:00 AM. Please keep noise levels low during these hours to respect other residents.",
-            "category": "rules",
-            "order": 1,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc)
-        },
-        {
-            "faq_id": "faq_005",
-            "question": "Can I have visitors?",
-            "answer": "Visitors are allowed from 8:00 AM to 9:00 PM. All visitors must register at the front desk. Overnight guests require prior approval from management.",
-            "category": "rules",
+            "faq_id": "faq_014",
+            "question": "Who handles maintenance issues?",
+            "answer": "Our dedicated maintenance team handles all building and repair concerns. For urgent issues, you can also contact the admin office directly.",
+            "category": "maintenance",
             "order": 2,
             "is_active": True,
             "created_at": datetime.now(timezone.utc)
         },
+        # Amenities FAQs
         {
-            "faq_id": "faq_006",
+            "faq_id": "faq_015",
             "question": "What amenities are included?",
-            "answer": "All rooms include WiFi, air conditioning, bed with linens, study desk, and wardrobe. Common areas have laundry facilities, kitchen, and lounge.",
+            "answer": "All rooms include WiFi, air conditioning, bed with linens, and wardrobe. Common areas include kitchen (reheating only), dining area, laundry facilities, and visitor seating area at ground floor.",
             "category": "amenities",
             "order": 1,
             "is_active": True,
             "created_at": datetime.now(timezone.utc)
         },
+        {
+            "faq_id": "faq_016",
+            "question": "How do I use the kitchen?",
+            "answer": "The kitchen is for reheating food only - no cooking. Clean the table after eating, wash dishes immediately, and label your food items in the refrigerator with your name. Refrigerator defrost is every other Saturday.",
+            "category": "amenities",
+            "order": 2,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Branch Information
+        {
+            "faq_id": "faq_017",
+            "question": "Where are Lilycrest branches located?",
+            "answer": "Lilycrest has two branches: Gil Puyat (started 2024) and Guadalupe (operating since 2016). Both branches offer the same quality accommodation and services.",
+            "category": "general",
+            "order": 3,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_018",
+            "question": "What are the penalties for rule violations?",
+            "answer": "Three warnings may result in contract termination and forfeiture of your security deposit. Please follow all house rules to maintain a harmonious living environment.",
+            "category": "rules",
+            "order": 6,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        # Move-out FAQs
+        {
+            "faq_id": "faq_019",
+            "question": "What is the move-out process?",
+            "answer": "1) Notify management 30 days before your intended move-out date. 2) Complete the clearance form. 3) Schedule a room inspection. 4) Settle all outstanding bills. 5) Return your RFID card on the last day.",
+            "category": "general",
+            "order": 4,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "faq_id": "faq_020",
+            "question": "How do I contact management?",
+            "answer": "You can submit a support ticket through the app, email the admin office, or visit the front desk during office hours. For Gil Puyat branch, the admin team is available on-site. For Guadalupe branch, contact the main office.",
+            "category": "general",
+            "order": 5,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc)
+        },
+    ]
         {
             "faq_id": "faq_007",
             "question": "How do I contact the management?",
