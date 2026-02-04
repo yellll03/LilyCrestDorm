@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../src/context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
@@ -39,10 +38,7 @@ export default function SplashScreen() {
       style={styles.background}
       resizeMode="cover"
     >
-      <LinearGradient
-        colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
-        style={styles.gradient}
-      >
+      <View style={styles.gradient}>
         <View style={styles.content}>
           <View style={styles.textContainer}>
             <Text style={styles.title}>Looking for your just-right space in the city?</Text>
@@ -67,7 +63,7 @@ export default function SplashScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
+      </View>
     </ImageBackground>
   );
 }
