@@ -150,7 +150,10 @@ export default function ServicesScreen() {
         <View>
           <Text style={styles.branchName}>Lilycrest Gil Puyat Branch</Text>
         </View>
-        <TouchableOpacity style={styles.notificationButton}>
+        <TouchableOpacity 
+          style={styles.notificationButton}
+          onPress={() => router.push('/(tabs)/announcements')}
+        >
           <Ionicons name="notifications-outline" size={24} color="#1E3A5F" />
         </TouchableOpacity>
       </View>
