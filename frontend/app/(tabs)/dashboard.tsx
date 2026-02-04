@@ -171,9 +171,27 @@ export default function DashboardScreen() {
                   : '₱0'}
               </Text>
             </View>
+            {dashboardData?.latest_bill && dashboardData.latest_bill.status !== 'paid' && (
+              <View style={styles.billingStatusRow}>
+                <View style={[
+                  styles.billingStatusBadge,
+                  { backgroundColor: new Date(dashboardData.latest_bill.due_date) < new Date() ? '#FEE2E2' : '#FEF3C7' }
+                ]}>
+                  <Text style={[
+                    styles.billingStatusText,
+                    { color: new Date(dashboardData.latest_bill.due_date) < new Date() ? '#EF4444' : '#F59E0B' }
+                  ]}>
+                    {new Date(dashboardData.latest_bill.due_date) < new Date() ? 'Overdue' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
-          <TouchableOpacity style={styles.viewDetailsButton}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
+          <TouchableOpacity 
+            style={styles.viewDetailsButton}
+            onPress={() => router.push('/billing')}
+          >
+            <Text style={styles.viewDetailsText}>View Billing History</Text>
           </TouchableOpacity>
         </View>
 
