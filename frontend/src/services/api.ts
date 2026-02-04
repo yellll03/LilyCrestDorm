@@ -68,6 +68,19 @@ export const apiService = {
   getProfile: () => api.get('/users/me'),
   updateProfile: (data: any) => api.put('/users/me', data),
   
+  // FAQs (Chatbot)
+  getFAQs: (category?: string) => api.get('/faqs', { params: { category } }),
+  getFAQCategories: () => api.get('/faqs/categories'),
+  
+  // Support Tickets
+  getMyTickets: (status?: string) => api.get('/tickets/me', { params: { status } }),
+  getTicket: (ticketId: string) => api.get(`/tickets/${ticketId}`),
+  createTicket: (data: any) => api.post('/tickets', data),
+  respondToTicket: (ticketId: string, data: any) => 
+    api.post(`/tickets/${ticketId}/respond`, data),
+  updateTicketStatus: (ticketId: string, status: string) => 
+    api.put(`/tickets/${ticketId}/status`, { status }),
+  
   // Seed data
   seedData: () => api.post('/seed'),
 };
