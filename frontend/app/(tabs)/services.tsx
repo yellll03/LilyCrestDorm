@@ -33,6 +33,7 @@ interface MaintenanceRequest {
 type TabType = 'all' | 'pending' | 'completed';
 
 export default function ServicesScreen() {
+  const router = useRouter();
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
