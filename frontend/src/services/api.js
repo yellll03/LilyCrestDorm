@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://dormitory-mgmt-test.preview.emergentagent.com';
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://housing-connect-4.preview.emergentagent.com';
 
 export const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
