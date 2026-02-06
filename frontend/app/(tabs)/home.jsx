@@ -111,7 +111,10 @@ export default function HomeScreen() {
   const greeting = currentTime.getHours() < 12 ? 'Good morning' : currentTime.getHours() < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <AppHeader onMenuPress={() => setDrawerVisible(true)} showNotificationBadge={true} />
+      <SideDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+      
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -120,23 +123,26 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with User Avatar */}
-        <View style={styles.header}>
-          <View style={styles.userSection}>
-            <TouchableOpacity 
-              style={styles.avatarContainer}
-              onPress={() => router.push('/(tabs)/profile')}
-            >
-              {user?.picture ? (
-                <Image source={{ uri: user.picture }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                  </Text>
-                </View>
-              )}
-              <View style={styles.onlineIndicator} />
+        {/* Greeting Section */}
+        <View style={styles.greetingSection}>
+          <View style={styles.greetingLeft}>
+            <Text style={styles.greeting}>{greeting},</Text>
+            <Text style={styles.userName}>{user?.name || 'Tenant'}</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            {user?.picture ? (
+              <Image source={{ uri: user.picture }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.onlineIndicator} />
             </TouchableOpacity>
             <View style={styles.userInfo}>
               <Text style={styles.greeting}>{greeting},</Text>
