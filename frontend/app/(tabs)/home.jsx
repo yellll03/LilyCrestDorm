@@ -148,12 +148,6 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>{greeting},</Text>
               <Text style={styles.userName}>{user?.name || 'Tenant'}</Text>
             </View>
-          </View>
-          <TouchableOpacity 
-            style={styles.profileButton}
-            onPress={() => router.push('/(tabs)/profile')}
-          >
-            <Ionicons name="settings-outline" size={22} color="#1E3A5F" />
           </TouchableOpacity>
         </View>
 
