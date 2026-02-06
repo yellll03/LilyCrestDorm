@@ -68,6 +68,12 @@ export const apiService = {
   getFAQs: (category) => api.get('/faqs', { params: { category } }),
   getFAQCategories: () => api.get('/faqs/categories'),
   
+  // AI Chatbot
+  sendChatMessage: (message, sessionId) => 
+    axios.post(`${BACKEND_URL}:8002/api/chatbot/message`, { message, session_id: sessionId }),
+  resetChatSession: (sessionId) =>
+    axios.post(`${BACKEND_URL}:8002/api/chatbot/reset`, { session_id: sessionId }),
+  
   // Support Tickets
   getMyTickets: (status) => api.get('/tickets/me', { params: { status } }),
   getTicket: (ticketId) => api.get(`/tickets/${ticketId}`),
