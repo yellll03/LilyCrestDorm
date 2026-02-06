@@ -143,11 +143,6 @@ export default function HomeScreen() {
               </View>
             )}
             <View style={styles.onlineIndicator} />
-            </TouchableOpacity>
-            <View style={styles.userInfo}>
-              <Text style={styles.greeting}>{greeting},</Text>
-              <Text style={styles.userName}>{user?.name || 'Tenant'}</Text>
-            </View>
           </TouchableOpacity>
         </View>
 
