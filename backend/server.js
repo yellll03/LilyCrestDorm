@@ -357,6 +357,42 @@ app.post('/api/auth/logout', authMiddleware, async (req, res) => {
   }
 });
 
+// Change Password (requires re-authentication with Firebase)
+app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    const userId = req.user.user_id;
+    const userEmail = req.user.email;
+    
+    if (!current_password || !new_password) {
+      return res.status(400).json({ detail: 'Current password and new password are required' });
+    }
+    
+    if (new_password.length < 8) {
+      return res.status(400).json({ detail: 'New password must be at least 8 characters' });
+    }
+    
+    // Verify current password with Firebase
+    const firebaseApiKey = process.env.FIREBASE_API_KEY;
+    try {
+      await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
+        { email: userEmail, password: current_password, returnSecureToken: false }
+      );
+    } catch (error) {
+      return res.status(401).json({ detail: 'Current password is incorrect' });
+    }
+    
+    // Update password in Firebase Admin
+    await admin.auth().updateUser(userId, { password: new_password });
+    
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ detail: 'Failed to change password. Please try again.' });
+  }
+});
+
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
