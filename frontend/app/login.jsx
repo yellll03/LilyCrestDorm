@@ -18,10 +18,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/context/AuthContext';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { 
+  GoogleAuthProvider, 
+  signInWithCredential,
+  signInWithEmailAndPassword
+} from 'firebase/auth';
+import { auth } from '../src/config/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Google Web Client ID from Firebase
+// Firebase Web Client ID for Google Sign-In
 const GOOGLE_WEB_CLIENT_ID = '784085654130-ue5677aho518t6btjffc26j6sut1akfj.apps.googleusercontent.com';
 
 // Validation helpers
@@ -50,11 +56,12 @@ export default function LoginScreen() {
   const [touched, setTouched] = useState({ email: false, password: false });
   const [loginError, setLoginError] = useState('');
 
-  // Google Auth Request
+  // Google Auth Request - configured for web and mobile
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_WEB_CLIENT_ID,
     androidClientId: GOOGLE_WEB_CLIENT_ID,
+    scopes: ['profile', 'email'],
   });
 
   // Handle Google Sign-In response
@@ -64,6 +71,8 @@ export default function LoginScreen() {
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
       setLoginError('Google sign-in was cancelled or failed.');
+    } else if (response?.type === 'cancel' || response?.type === 'dismiss') {
+      setIsGoogleLoading(false);
     }
   }, [response]);
 
@@ -72,7 +81,32 @@ export default function LoginScreen() {
       const { id_token, access_token } = response.params;
       
       if (id_token) {
-        const result = await signInWithGoogle(id_token);
+        // Create Firebase credential from the Google ID token
+        const credential = GoogleAuthProvider.credential(id_token, access_token);
+        
+        // Sign in to Firebase with the credential
+        const userCredential = await signInWithCredential(auth, credential);
+        const firebaseUser = userCredential.user;
+        
+        // Get the Firebase ID token to send to our backend
+        const firebaseIdToken = await firebaseUser.getIdToken();
+        
+        // Send to our backend for session creation
+        const result = await signInWithGoogle(firebaseIdToken);
+        
+        if (result.success) {
+          router.replace('/(tabs)/home');
+        } else {
+          setLoginError(result.error || 'Google sign-in failed');
+        }
+      } else if (access_token) {
+        // Fallback: If we only got access_token, try with that
+        const credential = GoogleAuthProvider.credential(null, access_token);
+        const userCredential = await signInWithCredential(auth, credential);
+        const firebaseUser = userCredential.user;
+        const firebaseIdToken = await firebaseUser.getIdToken();
+        
+        const result = await signInWithGoogle(firebaseIdToken);
         if (result.success) {
           router.replace('/(tabs)/home');
         } else {
@@ -119,6 +153,30 @@ export default function LoginScreen() {
     setLoginError('');
     
     try {
+      // First, sign in with Firebase to validate credentials
+      try {
+        await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      } catch (firebaseError) {
+        // Handle Firebase-specific errors
+        const errorCode = firebaseError.code;
+        if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
+          setLoginError('Invalid email or password. Please try again.');
+          setIsEmailLoading(false);
+          return;
+        } else if (errorCode === 'auth/too-many-requests') {
+          setLoginError('Too many failed attempts. Please try again later.');
+          setIsEmailLoading(false);
+          return;
+        } else if (errorCode === 'auth/user-disabled') {
+          setLoginError('This account has been disabled.');
+          setIsEmailLoading(false);
+          return;
+        }
+        // For other errors, continue to backend (it might work)
+        console.log('Firebase auth note:', firebaseError.code);
+      }
+      
+      // Then call our backend to create session
       const result = await loginWithEmail(email.trim().toLowerCase(), password);
       if (result.success) {
         router.replace('/(tabs)/home');
@@ -126,6 +184,7 @@ export default function LoginScreen() {
         setLoginError(result.error || 'Login failed. Please try again.');
       }
     } catch (error) {
+      console.error('Login error:', error);
       setLoginError('An unexpected error occurred. Please try again.');
     } finally {
       setIsEmailLoading(false);
@@ -175,10 +234,25 @@ export default function LoginScreen() {
               <Text style={styles.label}>Email Address</Text>
               <View style={[styles.inputWrapper, touched.email && errors.email && styles.inputWrapperError, touched.email && isEmailValid && styles.inputWrapperSuccess]}>
                 <Ionicons name="mail-outline" size={20} color={touched.email && errors.email ? '#EF4444' : '#9CA3AF'} style={styles.inputIcon} />
-                <TextInput style={styles.input} placeholder="Enter your email" placeholderTextColor="#9CA3AF" value={email} onChangeText={setEmail} onBlur={() => setTouched(prev => ({ ...prev, email: true }))} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Enter your email" 
+                  placeholderTextColor="#9CA3AF" 
+                  value={email} 
+                  onChangeText={setEmail} 
+                  onBlur={() => setTouched(prev => ({ ...prev, email: true }))} 
+                  keyboardType="email-address" 
+                  autoCapitalize="none" 
+                  autoCorrect={false} 
+                />
                 {touched.email && isEmailValid && <Ionicons name="checkmark-circle" size={20} color="#22C55E" />}
               </View>
-              {touched.email && errors.email ? <View style={styles.errorContainer}><Ionicons name="alert-circle" size={14} color="#EF4444" /><Text style={styles.errorText}>{errors.email}</Text></View> : null}
+              {touched.email && errors.email ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Password Input */}
@@ -186,12 +260,25 @@ export default function LoginScreen() {
               <Text style={styles.label}>Password</Text>
               <View style={[styles.inputWrapper, touched.password && errors.password && styles.inputWrapperError, touched.password && isPasswordValid && styles.inputWrapperSuccess]}>
                 <Ionicons name="lock-closed-outline" size={20} color={touched.password && errors.password ? '#EF4444' : '#9CA3AF'} style={styles.inputIcon} />
-                <TextInput style={styles.input} placeholder="Enter your password" placeholderTextColor="#9CA3AF" value={password} onChangeText={setPassword} onBlur={() => setTouched(prev => ({ ...prev, password: true }))} secureTextEntry={!showPassword} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Enter your password" 
+                  placeholderTextColor="#9CA3AF" 
+                  value={password} 
+                  onChangeText={setPassword} 
+                  onBlur={() => setTouched(prev => ({ ...prev, password: true }))} 
+                  secureTextEntry={!showPassword} 
+                />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
-              {touched.password && errors.password ? <View style={styles.errorContainer}><Ionicons name="alert-circle" size={14} color="#EF4444" /><Text style={styles.errorText}>{errors.password}</Text></View> : null}
+              {touched.password && errors.password ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Forgot Password */}
@@ -200,10 +287,19 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Login Error */}
-            {loginError ? <View style={styles.loginErrorContainer}><Ionicons name="alert-circle" size={18} color="#FFFFFF" /><Text style={styles.loginErrorText}>{loginError}</Text></View> : null}
+            {loginError ? (
+              <View style={styles.loginErrorContainer}>
+                <Ionicons name="alert-circle" size={18} color="#FFFFFF" />
+                <Text style={styles.loginErrorText}>{loginError}</Text>
+              </View>
+            ) : null}
 
             {/* Sign In Button */}
-            <TouchableOpacity style={[styles.signInButton, (!isEmailValid || !isPasswordValid || isEmailLoading) && styles.signInButtonDisabled]} onPress={handleLogin} disabled={isLoading || isEmailLoading || !isEmailValid || !isPasswordValid}>
+            <TouchableOpacity 
+              style={[styles.signInButton, (!isEmailValid || !isPasswordValid || isEmailLoading) && styles.signInButtonDisabled]} 
+              onPress={handleLogin} 
+              disabled={isLoading || isEmailLoading || !isEmailValid || !isPasswordValid}
+            >
               {isEmailLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.signInButtonText}>Sign In</Text>}
             </TouchableOpacity>
           </View>
@@ -216,10 +312,20 @@ export default function LoginScreen() {
           </View>
 
           {/* Google Sign In */}
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={isGoogleLoading || !request}>
-            {isGoogleLoading ? <ActivityIndicator color="#1E3A5F" /> : (
+          <TouchableOpacity 
+            style={styles.googleButton} 
+            onPress={handleGoogleLogin} 
+            disabled={isGoogleLoading || !request}
+          >
+            {isGoogleLoading ? (
+              <ActivityIndicator color="#1E3A5F" />
+            ) : (
               <>
-                <Image source={{ uri: 'https://www.google.com/favicon.ico' }} style={styles.googleIcon} />
+                <Image 
+                  source={{ uri: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg' }} 
+                  style={styles.googleIcon} 
+                  defaultSource={{ uri: 'https://www.google.com/favicon.ico' }}
+                />
                 <Text style={styles.googleButtonText}>Continue with Google</Text>
               </>
             )}
@@ -260,13 +366,40 @@ const styles = StyleSheet.create({
   forgotPasswordText: { color: '#F97316', fontSize: 14, fontWeight: '600' },
   loginErrorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', borderRadius: 10, padding: 12, marginBottom: 16, gap: 8 },
   loginErrorText: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
-  signInButton: { backgroundColor: '#1E3A5F', paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...Platform.select({ ios: { shadowColor: '#1E3A5F', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }, android: { elevation: 4 }, web: { boxShadow: '0 4px 12px rgba(30, 58, 95, 0.3)' } }) },
-  signInButtonDisabled: { backgroundColor: '#94A3B8', ...Platform.select({ ios: { shadowOpacity: 0 }, android: { elevation: 0 }, web: { boxShadow: 'none' } }) },
+  signInButton: { 
+    backgroundColor: '#1E3A5F', 
+    paddingVertical: 16, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    ...Platform.select({ 
+      ios: { shadowColor: '#1E3A5F', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }, 
+      android: { elevation: 4 }, 
+      web: { boxShadow: '0 4px 12px rgba(30, 58, 95, 0.3)' } 
+    }) 
+  },
+  signInButtonDisabled: { 
+    backgroundColor: '#94A3B8', 
+    ...Platform.select({ 
+      ios: { shadowOpacity: 0 }, 
+      android: { elevation: 0 }, 
+      web: { boxShadow: 'none' } 
+    }) 
+  },
   signInButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   divider: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerText: { paddingHorizontal: 16, color: '#9CA3AF', fontSize: 13 },
-  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14, backgroundColor: '#FFFFFF', gap: 12 },
+  googleButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderWidth: 1.5, 
+    borderColor: '#E5E7EB', 
+    borderRadius: 12, 
+    paddingVertical: 14, 
+    backgroundColor: '#FFFFFF', 
+    gap: 12 
+  },
   googleIcon: { width: 20, height: 20 },
   googleButtonText: { color: '#374151', fontSize: 15, fontWeight: '600' },
   noticeContainer: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF7ED', borderRadius: 12, padding: 16, marginTop: 24, gap: 10 },
