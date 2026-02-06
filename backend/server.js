@@ -776,6 +776,365 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
+// ===========================================
+// AI CHATBOT & LIVE CHAT ENDPOINTS
+// ===========================================
+
+const CHATBOT_SYSTEM_PROMPT = `You are Lily, a friendly AI assistant for LilyCrest Dormitory in Makati City, Philippines.
+
+KEY INFORMATION:
+- Address: #7 Gil Puyat Ave. cor Marconi St. Brgy Palanan, Makati City
+- Contact: +63 912 345 6789 | support@lilycrest.ph
+- Room Types: Standard (₱5,400/mo), Deluxe (₱7,200/mo), Premium (₱9,000/mo)
+- Payment: Due 5th of each month, Grace period 2 days, Late fee ₱50/day
+- Payment Methods: Bank Transfer (BDO/BPI), GCash, Maya
+- Curfew: Gate closes 11PM, Quiet hours 10PM-7AM
+- Visitors: 8AM-9PM only, must register at front desk, no overnight guests
+
+HELP WITH:
+- Billing questions, payment methods, due dates
+- House rules, curfew, visitor policies
+- Maintenance requests and procedures
+- Room information and amenities
+- Document requests (lease, ID copies)
+
+GUIDELINES:
+- Be warm and friendly, use "po" occasionally
+- Keep responses concise but helpful
+- If issue is complex or needs human intervention, respond with: "[NEEDS_ADMIN]" at the START of your message
+- Complex issues include: payment disputes, lease termination, complaints about other tenants, refund requests, security concerns
+
+Example complex issue response:
+"[NEEDS_ADMIN] I understand this is a sensitive billing concern po. Let me connect you with our admin team who can better assist you with this matter."`;
+
+// Get or create Gemini chat session
+async function getGeminiChat(sessionId) {
+  if (!chatSessions.has(sessionId)) {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const chat = model.startChat({
+      history: [],
+      generationConfig: {
+        maxOutputTokens: 500,
+        temperature: 0.7,
+      },
+    });
+    chatSessions.set(sessionId, { chat, history: [] });
+  }
+  return chatSessions.get(sessionId);
+}
+
+// AI Chat Message Endpoint
+app.post('/api/chatbot/message', authenticateToken, async (req, res) => {
+  try {
+    const { message, session_id } = req.body;
+    const userId = req.user.user_id;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    
+    const sessionId = session_id || `${userId}_${Date.now()}`;
+    const session = await getGeminiChat(sessionId);
+    
+    // Check if there's an active live chat
+    const liveChat = liveChatQueue.get(sessionId);
+    if (liveChat && liveChat.status === 'active') {
+      // Store message for live chat instead
+      liveChat.messages.push({
+        sender: 'tenant',
+        content: message,
+        timestamp: new Date()
+      });
+      
+      return res.json({
+        response: null,
+        session_id: sessionId,
+        live_chat_active: true,
+        admin_name: liveChat.admin_name,
+        message: 'Message sent to admin'
+      });
+    }
+    
+    // Send to Gemini AI
+    const fullPrompt = session.history.length === 0 
+      ? `${CHATBOT_SYSTEM_PROMPT}\n\nTenant question: ${message}`
+      : message;
+    
+    const result = await session.chat.sendMessage(fullPrompt);
+    const aiResponse = result.response.text();
+    
+    // Store in history
+    session.history.push({ role: 'user', content: message });
+    session.history.push({ role: 'assistant', content: aiResponse });
+    
+    // Check if AI wants to escalate
+    const needsAdmin = aiResponse.startsWith('[NEEDS_ADMIN]');
+    const cleanResponse = aiResponse.replace('[NEEDS_ADMIN]', '').trim();
+    
+    // Store chat in database
+    await db.collection('chat_history').insertOne({
+      session_id: sessionId,
+      user_id: userId,
+      message,
+      response: cleanResponse,
+      needs_admin: needsAdmin,
+      created_at: new Date()
+    });
+    
+    res.json({
+      response: cleanResponse,
+      session_id: sessionId,
+      needs_admin: needsAdmin,
+      live_chat_active: false
+    });
+    
+  } catch (error) {
+    console.error('Chatbot error:', error);
+    res.status(500).json({
+      response: "I'm having trouble connecting right now po. Please try again or contact the admin office at +63 912 345 6789.",
+      error: error.message
+    });
+  }
+});
+
+// Request Live Chat with Admin
+app.post('/api/chatbot/request-admin', authenticateToken, async (req, res) => {
+  try {
+    const { session_id, reason } = req.body;
+    const userId = req.user.user_id;
+    const user = await db.collection('users').findOne({ user_id: userId });
+    
+    const sessionId = session_id || `${userId}_${Date.now()}`;
+    
+    // Check if already in queue
+    if (liveChatQueue.has(sessionId)) {
+      const existing = liveChatQueue.get(sessionId);
+      return res.json({
+        queued: true,
+        position: existing.position,
+        status: existing.status,
+        message: existing.status === 'active' 
+          ? `You are now chatting with ${existing.admin_name}`
+          : 'Your request is in queue. An admin will be with you shortly.'
+      });
+    }
+    
+    // Get chat history for context
+    const session = chatSessions.get(sessionId);
+    const chatHistory = session ? session.history : [];
+    
+    // Create live chat request
+    const liveChatRequest = {
+      session_id: sessionId,
+      user_id: userId,
+      user_name: user?.name || 'Tenant',
+      user_email: user?.email,
+      reason: reason || 'Requested admin assistance',
+      chat_history: chatHistory,
+      messages: [],
+      status: 'waiting', // waiting, active, closed
+      admin_id: null,
+      admin_name: null,
+      position: liveChatQueue.size + 1,
+      created_at: new Date()
+    };
+    
+    liveChatQueue.set(sessionId, liveChatRequest);
+    
+    // Store in database
+    await db.collection('live_chat_requests').insertOne(liveChatRequest);
+    
+    res.json({
+      queued: true,
+      session_id: sessionId,
+      position: liveChatRequest.position,
+      message: 'Your request has been submitted. An admin will be with you shortly.'
+    });
+    
+  } catch (error) {
+    console.error('Live chat request error:', error);
+    res.status(500).json({ error: 'Failed to request admin chat' });
+  }
+});
+
+// Get Live Chat Status
+app.get('/api/chatbot/live-status/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const liveChat = liveChatQueue.get(sessionId);
+    
+    if (!liveChat) {
+      return res.json({ active: false, in_queue: false });
+    }
+    
+    res.json({
+      active: liveChat.status === 'active',
+      in_queue: liveChat.status === 'waiting',
+      position: liveChat.position,
+      admin_name: liveChat.admin_name,
+      messages: liveChat.messages
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get status' });
+  }
+});
+
+// Admin: Get Pending Live Chats
+app.get('/api/admin/live-chats', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const user = await db.collection('users').findOne({ user_id: req.user.user_id });
+    if (user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const pendingChats = [];
+    liveChatQueue.forEach((chat, sessionId) => {
+      if (chat.status === 'waiting' || chat.status === 'active') {
+        pendingChats.push({
+          session_id: sessionId,
+          user_name: chat.user_name,
+          reason: chat.reason,
+          status: chat.status,
+          created_at: chat.created_at
+        });
+      }
+    });
+    
+    res.json(pendingChats);
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get live chats' });
+  }
+});
+
+// Admin: Accept Live Chat
+app.post('/api/admin/live-chat/accept', authenticateToken, async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const adminUser = await db.collection('users').findOne({ user_id: req.user.user_id });
+    
+    if (adminUser?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const liveChat = liveChatQueue.get(session_id);
+    if (!liveChat) {
+      return res.status(404).json({ error: 'Chat session not found' });
+    }
+    
+    if (liveChat.status === 'active') {
+      return res.status(400).json({ 
+        error: 'Chat already being handled',
+        admin_name: liveChat.admin_name 
+      });
+    }
+    
+    // Assign admin to chat
+    liveChat.status = 'active';
+    liveChat.admin_id = req.user.user_id;
+    liveChat.admin_name = adminUser?.name || 'Admin';
+    liveChat.messages.push({
+      sender: 'system',
+      content: `${liveChat.admin_name} has joined the chat.`,
+      timestamp: new Date()
+    });
+    
+    // Update in database
+    await db.collection('live_chat_requests').updateOne(
+      { session_id },
+      { $set: { status: 'active', admin_id: req.user.user_id, admin_name: liveChat.admin_name } }
+    );
+    
+    res.json({
+      success: true,
+      chat_history: liveChat.chat_history,
+      user_name: liveChat.user_name,
+      reason: liveChat.reason
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to accept chat' });
+  }
+});
+
+// Admin: Send Message in Live Chat
+app.post('/api/admin/live-chat/message', authenticateToken, async (req, res) => {
+  try {
+    const { session_id, message } = req.body;
+    const adminUser = await db.collection('users').findOne({ user_id: req.user.user_id });
+    
+    if (adminUser?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const liveChat = liveChatQueue.get(session_id);
+    if (!liveChat || liveChat.status !== 'active') {
+      return res.status(404).json({ error: 'Active chat session not found' });
+    }
+    
+    liveChat.messages.push({
+      sender: 'admin',
+      admin_name: adminUser?.name || 'Admin',
+      content: message,
+      timestamp: new Date()
+    });
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Close Live Chat
+app.post('/api/chatbot/close-live-chat', authenticateToken, async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const liveChat = liveChatQueue.get(session_id);
+    
+    if (liveChat) {
+      liveChat.status = 'closed';
+      liveChat.messages.push({
+        sender: 'system',
+        content: 'Chat session has been closed.',
+        timestamp: new Date()
+      });
+      
+      // Archive to database
+      await db.collection('live_chat_archive').insertOne({
+        ...liveChat,
+        closed_at: new Date()
+      });
+      
+      // Remove from active queue after a delay
+      setTimeout(() => liveChatQueue.delete(session_id), 5000);
+    }
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to close chat' });
+  }
+});
+
+// Get Chat History
+app.get('/api/chatbot/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const history = await db.collection('chat_history')
+      .find({ user_id: userId })
+      .sort({ created_at: -1 })
+      .limit(50)
+      .toArray();
+    
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get history' });
+  }
+});
+
 // Start server
 async function startServer() {
   await connectToMongo();
