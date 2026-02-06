@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://dorm-auth-staging.preview.emergentagent.com"
+BASE_URL = "https://dormitory-mgmt-test.preview.emergentagent.com"
 SESSION_TOKEN = "test_session_1770212957374"
 
 # Test data for Email/Password Login

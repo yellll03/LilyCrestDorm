@@ -121,7 +121,7 @@ export default function LoginScreen() {
     try {
       const baseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 
                       process.env.EXPO_PUBLIC_BACKEND_URL || 
-                      'https://dorm-auth-staging.preview.emergentagent.com';
+                      'https://dormitory-mgmt-test.preview.emergentagent.com';
       const redirectUrl = `${baseUrl}/auth-callback`;
       const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
       await Linking.openURL(authUrl);
