@@ -18,7 +18,6 @@ import { apiService } from '../../src/services/api';
 import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
 import AppHeader from '../../src/components/AppHeader';
-import SideDrawer from '../../src/components/SideDrawer';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -26,12 +25,9 @@ export default function HomeScreen() {
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
-  const [drawerVisible, setDrawerVisible] = useState(false);
   const pollingRef = useRef(null);
-  const timeRef = useRef(null);
 
   const fetchDashboard = async () => {
     try {
@@ -47,34 +43,12 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchDashboard();
-    // Seed data on first load
     apiService.seedData().catch(() => {});
   }, []);
 
-  // Real-time polling every 30 seconds
   useEffect(() => {
-    pollingRef.current = setInterval(() => {
-      fetchDashboard();
-    }, 30000);
-
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-      }
-    };
-  }, []);
-
-  // Real-time clock update every second
-  useEffect(() => {
-    timeRef.current = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => {
-      if (timeRef.current) {
-        clearInterval(timeRef.current);
-      }
-    };
+    pollingRef.current = setInterval(() => fetchDashboard(), 30000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -92,12 +66,6 @@ export default function HomeScreen() {
     if (url) Linking.openURL(url);
   };
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      console.log('Searching for:', searchQuery);
-    }
-  };
-
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -106,14 +74,9 @@ export default function HomeScreen() {
     );
   }
 
-  const formattedDate = format(currentTime, 'EEEE, MMMM dd, yyyy');
-  const formattedTime = format(currentTime, 'h:mm:ss a');
-  const greeting = currentTime.getHours() < 12 ? 'Good morning' : currentTime.getHours() < 18 ? 'Good afternoon' : 'Good evening';
-
   return (
     <View style={styles.container}>
-      <AppHeader onMenuPress={() => setDrawerVisible(true)} showNotificationBadge={true} />
-      <SideDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+      <AppHeader />
       
       <ScrollView
         style={styles.scrollView}
@@ -123,29 +86,6 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting Section */}
-        <View style={styles.greetingSection}>
-          <View style={styles.greetingLeft}>
-            <Text style={styles.greeting}>{greeting},</Text>
-            <Text style={styles.userName}>{user?.name || 'Tenant'}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.avatarContainer}
-            onPress={() => router.push('/(tabs)/profile')}
-          >
-            {user?.picture ? (
-              <Image source={{ uri: user.picture }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                </Text>
-              </View>
-            )}
-            <View style={styles.onlineIndicator} />
-          </TouchableOpacity>
-        </View>
-
         {/* Search Bar */}
         <View style={[styles.searchContainer, searchFocused && styles.searchContainerFocused]}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
@@ -157,7 +97,6 @@ export default function HomeScreen() {
             onChangeText={setSearchQuery}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
@@ -165,50 +104,31 @@ export default function HomeScreen() {
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options" size={20} color="#1E3A5F" />
-          </TouchableOpacity>
         </View>
 
-        {/* Date Time & Location Card */}
-        <View style={styles.dateLocationCard}>
-          <View style={styles.dateTimeSection}>
-            <View style={styles.dateIconContainer}>
-              <Ionicons name="calendar" size={22} color="#F97316" />
-            </View>
-            <View style={styles.dateTimeInfo}>
-              <Text style={styles.dateText}>{formattedDate}</Text>
-              <Text style={styles.timeText}>{formattedTime}</Text>
-            </View>
-            <View style={styles.liveIndicator}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
+        {/* Location Card */}
+        <TouchableOpacity style={styles.locationCard} onPress={openMap}>
+          <View style={styles.locationIconContainer}>
+            <Ionicons name="location" size={24} color="#1E3A5F" />
           </View>
-          <View style={styles.divider} />
-          <TouchableOpacity style={styles.locationSection} onPress={openMap}>
-            <View style={styles.locationIconContainer}>
-              <Ionicons name="location" size={22} color="#1E3A5F" />
-            </View>
-            <View style={styles.locationInfo}>
-              <Text style={styles.branchName}>Lilycrest Gil Puyat</Text>
-              <Text style={styles.addressText}>
-                #7 Gil Puyat Ave. cor Marconi St.{'\n'}Brgy Palanan, Makati City
-              </Text>
-            </View>
-            <View style={styles.mapButton}>
-              <Ionicons name="map-outline" size={18} color="#F97316" />
-            </View>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.locationInfo}>
+            <Text style={styles.branchName}>LilyCrest Gil Puyat</Text>
+            <Text style={styles.addressText}>
+              #7 Gil Puyat Ave. cor Marconi St., Brgy Palanan, Makati City
+            </Text>
+          </View>
+          <View style={styles.mapButton}>
+            <Ionicons name="navigate" size={18} color="#F97316" />
+          </View>
+        </TouchableOpacity>
 
         {/* Tenancy Status Card */}
         <View style={styles.tenancyCard}>
           <View style={styles.tenancyHeader}>
-            <Text style={styles.cardTitle}>Tenancy Status</Text>
+            <Text style={styles.cardTitle}>Your Room</Text>
             <View style={styles.activeStatusBadge}>
               <View style={styles.activeStatusDot} />
-              <Text style={styles.activeStatusText}>Active</Text>
+              <Text style={styles.activeStatusText}>Active Tenant</Text>
             </View>
           </View>
           
@@ -232,28 +152,20 @@ export default function HomeScreen() {
               <View style={styles.roomInfoGrid}>
                 <View style={styles.roomInfoItem}>
                   <Ionicons name="bed-outline" size={16} color="#6B7280" />
-                  <Text style={styles.roomInfoText}>
-                    {dashboardData?.room?.bed_type || 'N/A'}
-                  </Text>
+                  <Text style={styles.roomInfoText}>{dashboardData?.room?.bed_type || 'N/A'}</Text>
                 </View>
                 <View style={styles.roomInfoItem}>
                   <Ionicons name="people-outline" size={16} color="#6B7280" />
-                  <Text style={styles.roomInfoText}>
-                    {dashboardData?.room?.capacity || 0} pax
-                  </Text>
+                  <Text style={styles.roomInfoText}>{dashboardData?.room?.capacity || 0} pax</Text>
                 </View>
                 <View style={styles.roomInfoItem}>
                   <Ionicons name="layers-outline" size={16} color="#6B7280" />
-                  <Text style={styles.roomInfoText}>
-                    Floor {dashboardData?.room?.floor || 1}
-                  </Text>
+                  <Text style={styles.roomInfoText}>Floor {dashboardData?.room?.floor || 1}</Text>
                 </View>
               </View>
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Monthly Rate</Text>
-                <Text style={styles.priceValue}>
-                  ₱{(dashboardData?.room?.price || 0).toLocaleString()}
-                </Text>
+                <Text style={styles.priceValue}>₱{(dashboardData?.room?.price || 0).toLocaleString()}</Text>
               </View>
             </View>
           </View>
@@ -265,7 +177,7 @@ export default function HomeScreen() {
                 <Ionicons name="enter-outline" size={18} color="#22C55E" />
               </View>
               <View>
-                <Text style={styles.dateLabel}>Move-in Date</Text>
+                <Text style={styles.dateLabel}>Move-in</Text>
                 <Text style={styles.dateValue}>
                   {dashboardData?.assignment?.move_in_date 
                     ? format(new Date(dashboardData.assignment.move_in_date), 'MMM dd, yyyy')
@@ -302,7 +214,6 @@ export default function HomeScreen() {
                     amenity.toLowerCase().includes('air') ? 'snow' :
                     amenity.toLowerCase().includes('toilet') || amenity.toLowerCase().includes('bathroom') ? 'water' :
                     amenity.toLowerCase().includes('kitchen') ? 'restaurant' :
-                    amenity.toLowerCase().includes('lounge') ? 'cafe' :
                     'checkmark-circle'
                   } 
                   size={18} 
@@ -314,64 +225,35 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Important Updates */}
-        <View style={styles.updatesCard}>
-          <View style={styles.updatesHeader}>
-            <Text style={styles.cardTitle}>Important Updates</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/announcements')}>
-              <Text style={styles.seeAllText}>See All</Text>
+        {/* Quick Actions */}
+        <View style={styles.quickActionsCard}>
+          <Text style={styles.cardTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/(tabs)/billing')}>
+              <View style={[styles.actionIcon, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="card" size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.actionText}>Pay Bills</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/(tabs)/services')}>
+              <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="construct" size={24} color="#F59E0B" />
+              </View>
+              <Text style={styles.actionText}>Request Service</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/(tabs)/announcements')}>
+              <View style={[styles.actionIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="megaphone" size={24} color="#22C55E" />
+              </View>
+              <Text style={styles.actionText}>News</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/(tabs)/chatbot')}>
+              <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
+                <Ionicons name="chatbubbles" size={24} color="#F97316" />
+              </View>
+              <Text style={styles.actionText}>Get Help</Text>
             </TouchableOpacity>
           </View>
-          
-          {dashboardData?.latest_bill && dashboardData.latest_bill.status !== 'paid' && (
-            <TouchableOpacity 
-              style={styles.updateItem}
-              onPress={() => router.push('/(tabs)/billing')}
-            >
-              <View style={[styles.updateIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="card" size={20} color="#D97706" />
-              </View>
-              <View style={styles.updateContent}>
-                <Text style={styles.updateTitle}>Payment Due</Text>
-                <Text style={styles.updateDescription}>
-                  ₱{dashboardData.latest_bill.amount.toLocaleString()} due on {format(new Date(dashboardData.latest_bill.due_date), 'MMM dd')}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-
-          {dashboardData?.active_maintenance_count > 0 && (
-            <TouchableOpacity 
-              style={styles.updateItem}
-              onPress={() => router.push('/(tabs)/services')}
-            >
-              <View style={[styles.updateIcon, { backgroundColor: '#DBEAFE' }]}>
-                <Ionicons name="construct" size={20} color="#2563EB" />
-              </View>
-              <View style={styles.updateContent}>
-                <Text style={styles.updateTitle}>Active Service Request</Text>
-                <Text style={styles.updateDescription}>
-                  {dashboardData.active_maintenance_count} pending request(s)
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity 
-            style={styles.updateItem}
-            onPress={() => router.push('/(tabs)/announcements')}
-          >
-            <View style={[styles.updateIcon, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="megaphone" size={20} color="#16A34A" />
-            </View>
-            <View style={styles.updateContent}>
-              <Text style={styles.updateTitle}>Latest Announcements</Text>
-              <Text style={styles.updateDescription}>Check for important updates</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
         </View>
 
         {/* Spacer for tab bar */}
@@ -390,97 +272,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-  },
-  greetingSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  greetingLeft: {
-    flex: 1,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#F97316',
-  },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#1E3A5F',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F97316',
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  userInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E3A5F',
-  },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-      },
-    }),
-  },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 16 },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -492,131 +287,36 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     ...Platform.select({
       web: { boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-      },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
     }),
   },
-  searchContainerFocused: {
-    borderColor: '#F97316',
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  filterButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  dateLocationCard: {
+  searchContainerFocused: { borderColor: '#F97316' },
+  searchInput: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, fontSize: 16, color: '#1F2937' },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     ...Platform.select({
       web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-      },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     }),
   },
-  dateTimeSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#FFF7ED',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  dateTimeInfo: {
-    flex: 1,
-  },
-  dateText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E3A5F',
-  },
-  timeText: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    gap: 4,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#EF4444',
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#EF4444',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 14,
-  },
-  locationSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   locationIconContainer: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  locationInfo: {
-    flex: 1,
-  },
-  branchName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E3A5F',
-  },
-  addressText: {
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 18,
-    marginTop: 2,
-  },
-  mapButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF7ED',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  locationInfo: { flex: 1 },
+  branchName: { fontSize: 16, fontWeight: '600', color: '#1E3A5F', marginBottom: 4 },
+  addressText: { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  mapButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center' },
   tenancyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -624,151 +324,33 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     ...Platform.select({
       web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-      },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     }),
   },
-  tenancyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E3A5F',
-  },
-  activeStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    gap: 6,
-  },
-  activeStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#22C55E',
-  },
-  activeStatusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#22C55E',
-  },
-  tenancyContent: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  roomImageContainer: {
-    width: 110,
-    height: 110,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginRight: 14,
-    position: 'relative',
-  },
-  roomImage: {
-    width: '100%',
-    height: '100%',
-  },
-  roomTypeBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(30, 58, 95, 0.9)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  roomTypeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  roomDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  roomNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E3A5F',
-    marginBottom: 8,
-  },
-  roomInfoGrid: {
-    gap: 6,
-  },
-  roomInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  roomInfoText: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  priceLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  priceValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F97316',
-  },
-  tenancyDates: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 14,
-  },
-  dateItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateItemIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 12,
-  },
-  dateLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  dateValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E3A5F',
-  },
+  tenancyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  cardTitle: { fontSize: 17, fontWeight: '600', color: '#1E3A5F' },
+  activeStatusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, gap: 6 },
+  activeStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  activeStatusText: { fontSize: 12, fontWeight: '600', color: '#22C55E' },
+  tenancyContent: { flexDirection: 'row', marginBottom: 16 },
+  roomImageContainer: { width: 110, height: 110, borderRadius: 12, overflow: 'hidden', marginRight: 14, position: 'relative' },
+  roomImage: { width: '100%', height: '100%' },
+  roomTypeBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(30, 58, 95, 0.9)', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
+  roomTypeText: { fontSize: 10, fontWeight: '600', color: '#FFFFFF' },
+  roomDetails: { flex: 1, justifyContent: 'center' },
+  roomNumber: { fontSize: 22, fontWeight: '700', color: '#1E3A5F', marginBottom: 8 },
+  roomInfoGrid: { gap: 6 },
+  roomInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roomInfoText: { fontSize: 13, color: '#6B7280' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  priceLabel: { fontSize: 12, color: '#6B7280' },
+  priceValue: { fontSize: 18, fontWeight: '700', color: '#F97316' },
+  tenancyDates: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14 },
+  dateItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dateItemIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  dateDivider: { width: 1, height: 40, backgroundColor: '#E5E7EB', marginHorizontal: 12 },
+  dateLabel: { fontSize: 11, color: '#9CA3AF' },
+  dateValue: { fontSize: 13, fontWeight: '600', color: '#1E3A5F' },
   amenitiesCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -776,93 +358,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     ...Platform.select({
       web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-      },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     }),
   },
-  amenitiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 10,
-  },
-  amenityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    gap: 6,
-  },
-  amenityText: {
-    fontSize: 12,
-    color: '#1E3A5F',
-    fontWeight: '500',
-  },
-  updatesCard: {
+  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 10 },
+  amenityItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF7ED', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, gap: 6 },
+  amenityText: { fontSize: 12, color: '#1E3A5F', fontWeight: '500' },
+  quickActionsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     ...Platform.select({
       web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-      },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     }),
   },
-  updatesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  seeAllText: {
-    fontSize: 13,
-    color: '#F97316',
-    fontWeight: '600',
-  },
-  updateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  updateIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  updateContent: {
-    flex: 1,
-  },
-  updateTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E3A5F',
-  },
-  updateDescription: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  bottomSpacer: {
-    height: Platform.OS === 'ios' ? 120 : 100,
-  },
+  actionsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
+  actionItem: { alignItems: 'center', width: '23%' },
+  actionIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  actionText: { fontSize: 11, color: '#4B5563', textAlign: 'center', fontWeight: '500' },
+  bottomSpacer: { height: Platform.OS === 'ios' ? 120 : 100 },
   chatbotButton: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 110 : 90,
@@ -874,18 +390,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
-      ios: {
-        shadowColor: '#F97316',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: '0 4px 16px rgba(249, 115, 22, 0.4)',
-      },
+      ios: { shadowColor: '#F97316', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
+      android: { elevation: 8 },
+      web: { boxShadow: '0 4px 16px rgba(249, 115, 22, 0.4)' },
     }),
   },
 });
