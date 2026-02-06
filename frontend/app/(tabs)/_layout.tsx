@@ -15,26 +15,6 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.tabItem}>
-              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
-                <Ionicons 
-                  name={focused ? "grid" : "grid-outline"} 
-                  size={22} 
-                  color={focused ? '#F97316' : '#6B7280'} 
-                />
-              </View>
-              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
-                Dashboard
-              </Text>
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="services"
         options={{
           title: 'Services',
@@ -55,6 +35,26 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="announcements"
+        options={{
+          title: 'Announcements',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.tabItem}>
+              <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+                <Ionicons 
+                  name={focused ? "megaphone" : "megaphone-outline"} 
+                  size={22} 
+                  color={focused ? '#F97316' : '#6B7280'} 
+                />
+              </View>
+              <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                News
+              </Text>
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
@@ -68,20 +68,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="chatbot"
+        name="billing"
         options={{
-          title: 'Support',
+          title: 'Billings',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.tabItem}>
               <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
                 <Ionicons 
-                  name={focused ? "chatbubbles" : "chatbubbles-outline"} 
+                  name={focused ? "card" : "card-outline"} 
                   size={22} 
                   color={focused ? '#F97316' : '#6B7280'} 
                 />
               </View>
               <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
-                Support
+                Billings
               </Text>
             </View>
           ),
@@ -107,10 +107,17 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* Hidden tabs - accessible via navigation but not shown in tab bar */}
       <Tabs.Screen
-        name="announcements"
+        name="dashboard"
         options={{
-          href: null, // Hide from tab bar but keep accessible
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="chatbot"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
