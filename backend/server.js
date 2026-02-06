@@ -816,6 +816,7 @@ app.post('/api/seed', async (req, res) => {
           user_id: existingUser.user_id,
           amount: 5400.0,
           description: 'Monthly Rent - February 2026',
+          billing_type: 'rent',
           due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
           status: 'pending',
           created_at: new Date()
@@ -825,6 +826,7 @@ app.post('/api/seed', async (req, res) => {
           user_id: existingUser.user_id,
           amount: 850.0,
           description: 'Electricity Bill - January 2026',
+          billing_type: 'electricity',
           due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
           status: 'pending',
           created_at: new Date()
@@ -832,13 +834,60 @@ app.post('/api/seed', async (req, res) => {
         {
           billing_id: 'bill_003',
           user_id: existingUser.user_id,
+          amount: 450.0,
+          description: 'Water Bill - January 2026',
+          billing_type: 'water',
+          due_date: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+          status: 'pending',
+          created_at: new Date()
+        },
+        {
+          billing_id: 'bill_004',
+          user_id: existingUser.user_id,
           amount: 5400.0,
           description: 'Monthly Rent - January 2026',
+          billing_type: 'rent',
           due_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           status: 'paid',
-          payment_method: 'GCash',
+          payment_method: 'Bank Transfer - BDO',
           payment_date: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000),
           created_at: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
+        },
+        {
+          billing_id: 'bill_005',
+          user_id: existingUser.user_id,
+          amount: 720.0,
+          description: 'Electricity Bill - December 2025',
+          billing_type: 'electricity',
+          due_date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+          status: 'paid',
+          payment_method: 'Bank Transfer - BPI',
+          payment_date: new Date(Date.now() - 62 * 24 * 60 * 60 * 1000),
+          created_at: new Date(Date.now() - 65 * 24 * 60 * 60 * 1000)
+        },
+        {
+          billing_id: 'bill_006',
+          user_id: existingUser.user_id,
+          amount: 380.0,
+          description: 'Water Bill - December 2025',
+          billing_type: 'water',
+          due_date: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000),
+          status: 'paid',
+          payment_method: 'Bank Transfer - BDO',
+          payment_date: new Date(Date.now() - 56 * 24 * 60 * 60 * 1000),
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+        },
+        {
+          billing_id: 'bill_007',
+          user_id: existingUser.user_id,
+          amount: 100.0,
+          description: 'Late Payment Penalty - December 2025',
+          billing_type: 'penalty',
+          due_date: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000),
+          status: 'paid',
+          payment_method: 'Bank Transfer - BDO',
+          payment_date: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000),
+          created_at: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000)
         }
       ];
       
