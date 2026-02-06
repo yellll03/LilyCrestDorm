@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Modal,
   TextInput,
+  Modal,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,48 +19,54 @@ import { useRouter } from 'expo-router';
 import { apiService } from '../../src/services/api';
 import { format } from 'date-fns';
 
-interface MaintenanceRequest {
+interface ServiceRequest {
   request_id: string;
-  user_id: string;
   request_type: string;
   description: string;
   urgency: string;
   status: string;
-  notes?: string;
   created_at: string;
-  completed_at?: string;
+  updated_at: string;
 }
 
-type TabType = 'all' | 'pending' | 'completed';
+const REQUEST_TYPES = [
+  { id: 'maintenance', label: 'Maintenance', icon: 'construct', color: '#F59E0B' },
+  { id: 'plumbing', label: 'Plumbing', icon: 'water', color: '#3B82F6' },
+  { id: 'electrical', label: 'Electrical', icon: 'flash', color: '#EF4444' },
+  { id: 'aircon', label: 'Air Conditioning', icon: 'snow', color: '#06B6D4' },
+  { id: 'cleaning', label: 'Cleaning', icon: 'sparkles', color: '#22C55E' },
+  { id: 'pest', label: 'Pest Control', icon: 'bug', color: '#8B5CF6' },
+  { id: 'furniture', label: 'Furniture', icon: 'bed', color: '#EC4899' },
+  { id: 'other', label: 'Other', icon: 'ellipsis-horizontal', color: '#6B7280' },
+];
+
+const URGENCY_LEVELS = [
+  { id: 'low', label: 'Low', description: 'Can wait a few days', color: '#22C55E' },
+  { id: 'normal', label: 'Normal', description: 'Within 1-2 days', color: '#F59E0B' },
+  { id: 'high', label: 'Urgent', description: 'Needs immediate attention', color: '#EF4444' },
+];
 
 export default function ServicesScreen() {
   const router = useRouter();
-  const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('all');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newRequest, setNewRequest] = useState({
-    request_type: '',
-    description: '',
-    urgency: 'normal',
-  });
+  const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  const requestTypes = [
-    { label: 'Electrical', value: 'Electrical', icon: 'flash' },
-    { label: 'Plumbing', value: 'Plumbing', icon: 'water' },
-    { label: 'AC', value: 'AC', icon: 'snow' },
-    { label: 'Door Lock', value: 'Door Lock', icon: 'key' },
-    { label: 'Other', value: 'Other', icon: 'construct' },
-  ];
+  // Form state
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedUrgency, setSelectedUrgency] = useState('normal');
+  const [description, setDescription] = useState('');
 
   const fetchRequests = async () => {
     try {
       const response = await apiService.getMyMaintenance();
-      setRequests(response.data);
+      setRequests(response.data || []);
     } catch (error) {
-      console.error('Fetch maintenance error:', error);
+      console.error('Fetch requests error:', error);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -70,69 +77,75 @@ export default function ServicesScreen() {
     fetchRequests();
   }, []);
 
+  // Real-time polling every 30 seconds
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchRequests();
+    }, 30000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchRequests();
   }, []);
 
   const handleSubmit = async () => {
-    if (!newRequest.request_type || !newRequest.description) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!selectedType) {
+      Alert.alert('Error', 'Please select a service type');
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert('Error', 'Please describe your concern');
       return;
     }
 
     setSubmitting(true);
     try {
       await apiService.createMaintenance({
-        user_id: '', // Will be set by backend
-        request_type: newRequest.request_type,
-        description: newRequest.description,
-        urgency: newRequest.urgency,
+        request_type: selectedType,
+        description: description.trim(),
+        urgency: selectedUrgency,
       });
-      setModalVisible(false);
-      setNewRequest({ request_type: '', description: '', urgency: 'normal' });
-      fetchRequests();
-      Alert.alert('Success', 'Maintenance request submitted successfully');
+
+      Alert.alert(
+        'Request Submitted',
+        'Your service request has been submitted successfully. You will be notified of any updates.',
+        [{ text: 'OK', onPress: () => {
+          setShowModal(false);
+          resetForm();
+          fetchRequests();
+        }}]
+      );
     } catch (error) {
-      console.error('Submit request error:', error);
-      Alert.alert('Error', 'Failed to submit request');
+      Alert.alert('Error', 'Failed to submit request. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const filteredRequests = requests.filter((req) => {
-    if (activeTab === 'pending') return ['pending', 'in_progress'].includes(req.status);
-    if (activeTab === 'completed') return req.status === 'completed';
-    return true;
-  });
+  const resetForm = () => {
+    setSelectedType(null);
+    setSelectedUrgency('normal');
+    setDescription('');
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return '#F59E0B';
-      case 'in_progress':
-        return '#3B82F6';
-      case 'completed':
-        return '#22C55E';
-      default:
-        return '#6B7280';
+      case 'completed': return { bg: '#DCFCE7', text: '#22C55E' };
+      case 'in_progress': return { bg: '#DBEAFE', text: '#3B82F6' };
+      case 'pending': return { bg: '#FEF3C7', text: '#F59E0B' };
+      default: return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
 
-  const getTypeIcon = (type: string): keyof typeof Ionicons.glyphMap => {
-    switch (type.toLowerCase()) {
-      case 'electrical':
-        return 'flash';
-      case 'plumbing':
-        return 'water';
-      case 'ac':
-        return 'snow';
-      case 'door lock':
-        return 'key';
-      default:
-        return 'construct';
-    }
+  const getTypeInfo = (type: string) => {
+    return REQUEST_TYPES.find(t => t.id === type) || REQUEST_TYPES[7];
   };
 
   if (isLoading) {
@@ -143,245 +156,270 @@ export default function ServicesScreen() {
     );
   }
 
+  const pendingRequests = requests.filter(r => r.status !== 'completed');
+  const completedRequests = requests.filter(r => r.status === 'completed');
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.branchName}>Lilycrest Gil Puyat Branch</Text>
+        <Text style={styles.headerTitle}>Services & Inquiries</Text>
+        <View style={styles.refreshIndicator}>
+          <Ionicons name="sync" size={18} color="#9CA3AF" />
         </View>
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => router.push('/(tabs)/announcements')}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#1E3A5F" />
-        </TouchableOpacity>
       </View>
 
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={styles.submitButton}
-        onPress={() => setModalVisible(true)}
-      >
-        <Ionicons name="construct" size={20} color="#FFFFFF" />
-        <Text style={styles.submitButtonText}>Submit Maintenance Request</Text>
-      </TouchableOpacity>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {(['all', 'pending', 'completed'] as TabType[]).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Requests List */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E3A5F']} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {filteredRequests.length === 0 ? (
+        {/* Submit New Request Card */}
+        <TouchableOpacity style={styles.submitCard} onPress={() => setShowModal(true)}>
+          <View style={styles.submitIcon}>
+            <Ionicons name="add-circle" size={32} color="#F97316" />
+          </View>
+          <View style={styles.submitContent}>
+            <Text style={styles.submitTitle}>Submit New Inquiry</Text>
+            <Text style={styles.submitDescription}>
+              Report issues, request maintenance, or send concerns
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+        </TouchableOpacity>
+
+        {/* Quick Service Types */}
+        <View style={styles.quickServicesCard}>
+          <Text style={styles.sectionTitle}>Quick Service Request</Text>
+          <View style={styles.servicesGrid}>
+            {REQUEST_TYPES.slice(0, 6).map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={styles.serviceItem}
+                onPress={() => {
+                  setSelectedType(type.id);
+                  setShowModal(true);
+                }}
+              >
+                <View style={[styles.serviceIcon, { backgroundColor: `${type.color}15` }]}>
+                  <Ionicons name={type.icon as any} size={24} color={type.color} />
+                </View>
+                <Text style={styles.serviceLabel}>{type.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Tab Filter */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'new' && styles.tabActive]}
+            onPress={() => setActiveTab('new')}
+          >
+            <Ionicons 
+              name="time-outline" 
+              size={18} 
+              color={activeTab === 'new' ? '#FFFFFF' : '#6B7280'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'new' && styles.tabTextActive]}>
+              Active ({pendingRequests.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'history' && styles.tabActive]}
+            onPress={() => setActiveTab('history')}
+          >
+            <Ionicons 
+              name="checkmark-circle-outline" 
+              size={18} 
+              color={activeTab === 'history' ? '#FFFFFF' : '#6B7280'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>
+              Completed ({completedRequests.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Requests List */}
+        {(activeTab === 'new' ? pendingRequests : completedRequests).length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="construct-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyText}>No maintenance requests</Text>
+            <View style={styles.emptyIcon}>
+              <Ionicons 
+                name={activeTab === 'new' ? 'checkmark-done-circle' : 'document-text-outline'} 
+                size={48} 
+                color={activeTab === 'new' ? '#22C55E' : '#9CA3AF'} 
+              />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'new' ? 'No Active Requests' : 'No Completed Requests'}
+            </Text>
+            <Text style={styles.emptyText}>
+              {activeTab === 'new' 
+                ? 'All your service requests have been resolved.' 
+                : 'Your completed requests will appear here.'}
+            </Text>
           </View>
         ) : (
-          <>
-            {activeTab !== 'completed' && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Pending Requests</Text>
-                {filteredRequests
-                  .filter((r) => ['pending', 'in_progress'].includes(r.status))
-                  .map((request) => (
-                    <View key={request.request_id} style={styles.requestCard}>
-                      <View style={[styles.requestIcon, { backgroundColor: '#FEF3C7' }]}>
-                        <Ionicons
-                          name={getTypeIcon(request.request_type)}
-                          size={24}
-                          color="#F59E0B"
-                        />
-                      </View>
-                      <View style={styles.requestInfo}>
-                        <Text style={styles.requestType}>{request.request_type}</Text>
-                        <View style={styles.statusBadge}>
-                          <View
-                            style={[
-                              styles.statusDot,
-                              { backgroundColor: getStatusColor(request.status) },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.statusText,
-                              { color: getStatusColor(request.status) },
-                            ]}
-                          >
-                            {request.status.charAt(0).toUpperCase() +
-                              request.status.slice(1).replace('_', ' ')}
-                          </Text>
-                        </View>
-                        <Text style={styles.requestDate}>
-                          Request Date: {format(new Date(request.created_at), 'MMM dd, yyyy')}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
+          (activeTab === 'new' ? pendingRequests : completedRequests).map((request) => {
+            const typeInfo = getTypeInfo(request.request_type);
+            const statusColor = getStatusColor(request.status);
+            
+            return (
+              <View key={request.request_id} style={styles.requestCard}>
+                <View style={styles.requestHeader}>
+                  <View style={[styles.requestIcon, { backgroundColor: `${typeInfo.color}15` }]}>
+                    <Ionicons name={typeInfo.icon as any} size={24} color={typeInfo.color} />
+                  </View>
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestType}>{typeInfo.label}</Text>
+                    <Text style={styles.requestDate}>
+                      {format(new Date(request.created_at), 'MMM dd, yyyy • h:mm a')}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+                    <Text style={[styles.statusText, { color: statusColor.text }]}>
+                      {request.status === 'in_progress' ? 'In Progress' : 
+                       request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.requestDescription} numberOfLines={2}>
+                  {request.description}
+                </Text>
+                {request.urgency === 'high' && (
+                  <View style={styles.urgencyBadge}>
+                    <Ionicons name="warning" size={14} color="#EF4444" />
+                    <Text style={styles.urgencyText}>Urgent</Text>
+                  </View>
+                )}
               </View>
-            )}
-
-            {activeTab !== 'pending' && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Completed Requests</Text>
-                {filteredRequests
-                  .filter((r) => r.status === 'completed')
-                  .map((request) => (
-                    <View key={request.request_id} style={styles.requestCard}>
-                      <View style={[styles.requestIcon, { backgroundColor: '#DCFCE7' }]}>
-                        <Ionicons
-                          name={getTypeIcon(request.request_type)}
-                          size={24}
-                          color="#22C55E"
-                        />
-                      </View>
-                      <View style={styles.requestInfo}>
-                        <Text style={styles.requestType}>{request.request_type}</Text>
-                        <View style={styles.statusBadge}>
-                          <View
-                            style={[styles.statusDot, { backgroundColor: '#22C55E' }]}
-                          />
-                          <Text style={[styles.statusText, { color: '#22C55E' }]}>
-                            Completed
-                          </Text>
-                        </View>
-                        {request.completed_at && (
-                          <Text style={styles.requestDate}>
-                            Completed Date:{' '}
-                            {format(new Date(request.completed_at), 'MMM dd, yyyy')}
-                          </Text>
-                        )}
-                        {request.notes && (
-                          <Text style={styles.requestNote}>Note: {request.notes}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-              </View>
-            )}
-          </>
+            );
+          })
         )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* New Request Modal */}
+      {/* Floating Chatbot Button */}
+      <TouchableOpacity 
+        style={styles.chatbotButton}
+        onPress={() => router.push('/(tabs)/chatbot')}
+      >
+        <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Submit Request Modal */}
       <Modal
-        visible={modalVisible}
+        visible={showModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setShowModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Maintenance Request</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#1E3A5F" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>Request Type *</Text>
-            <View style={styles.typeGrid}>
-              {requestTypes.map((type) => (
-                <TouchableOpacity
-                  key={type.value}
-                  style={[
-                    styles.typeButton,
-                    newRequest.request_type === type.value && styles.typeButtonActive,
-                  ]}
-                  onPress={() =>
-                    setNewRequest({ ...newRequest, request_type: type.value })
-                  }
-                >
-                  <Ionicons
-                    name={type.icon as keyof typeof Ionicons.glyphMap}
-                    size={20}
-                    color={
-                      newRequest.request_type === type.value ? '#FFFFFF' : '#1E3A5F'
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      newRequest.request_type === type.value &&
-                        styles.typeButtonTextActive,
-                    ]}
-                  >
-                    {type.label}
-                  </Text>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Submit Inquiry</Text>
+                <TouchableOpacity onPress={() => { setShowModal(false); resetForm(); }}>
+                  <Ionicons name="close" size={24} color="#6B7280" />
                 </TouchableOpacity>
-              ))}
-            </View>
+              </View>
 
-            <Text style={styles.inputLabel}>Description *</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder="Describe the issue..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={4}
-              value={newRequest.description}
-              onChangeText={(text) =>
-                setNewRequest({ ...newRequest, description: text })
-              }
-            />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Service Type Selection */}
+                <Text style={styles.modalSectionTitle}>Select Service Type</Text>
+                <View style={styles.typeGrid}>
+                  {REQUEST_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.id}
+                      style={[
+                        styles.typeItem,
+                        selectedType === type.id && styles.typeItemSelected,
+                      ]}
+                      onPress={() => setSelectedType(type.id)}
+                    >
+                      <View style={[
+                        styles.typeIcon, 
+                        { backgroundColor: selectedType === type.id ? type.color : `${type.color}15` }
+                      ]}>
+                        <Ionicons 
+                          name={type.icon as any} 
+                          size={20} 
+                          color={selectedType === type.id ? '#FFFFFF' : type.color} 
+                        />
+                      </View>
+                      <Text style={[
+                        styles.typeLabel,
+                        selectedType === type.id && styles.typeLabelSelected
+                      ]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-            <Text style={styles.inputLabel}>Urgency</Text>
-            <View style={styles.urgencyRow}>
-              {['low', 'normal', 'high'].map((urgency) => (
-                <TouchableOpacity
-                  key={urgency}
-                  style={[
-                    styles.urgencyButton,
-                    newRequest.urgency === urgency && styles.urgencyButtonActive,
-                  ]}
-                  onPress={() => setNewRequest({ ...newRequest, urgency })}
+                {/* Urgency Level */}
+                <Text style={styles.modalSectionTitle}>Urgency Level</Text>
+                <View style={styles.urgencyOptions}>
+                  {URGENCY_LEVELS.map((level) => (
+                    <TouchableOpacity
+                      key={level.id}
+                      style={[
+                        styles.urgencyOption,
+                        selectedUrgency === level.id && { borderColor: level.color, borderWidth: 2 },
+                      ]}
+                      onPress={() => setSelectedUrgency(level.id)}
+                    >
+                      <View style={[styles.urgencyDot, { backgroundColor: level.color }]} />
+                      <View style={styles.urgencyContent}>
+                        <Text style={styles.urgencyLabel}>{level.label}</Text>
+                        <Text style={styles.urgencyDesc}>{level.description}</Text>
+                      </View>
+                      {selectedUrgency === level.id && (
+                        <Ionicons name="checkmark-circle" size={22} color={level.color} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Description */}
+                <Text style={styles.modalSectionTitle}>Describe Your Concern</Text>
+                <TextInput
+                  style={styles.descriptionInput}
+                  placeholder="Please provide details about your request or concern..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  value={description}
+                  onChangeText={setDescription}
+                />
+
+                {/* Submit Button */}
+                <TouchableOpacity 
+                  style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={submitting}
                 >
-                  <Text
-                    style={[
-                      styles.urgencyText,
-                      newRequest.urgency === urgency && styles.urgencyTextActive,
-                    ]}
-                  >
-                    {urgency.charAt(0).toUpperCase() + urgency.slice(1)}
-                  </Text>
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="send" size={20} color="#FFFFFF" />
+                      <Text style={styles.submitButtonText}>Submit Request</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
-              ))}
+              </ScrollView>
             </View>
-
-            <TouchableOpacity
-              style={styles.submitModalButton}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.submitModalButtonText}>Submit Request</Text>
-              )}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -402,105 +440,161 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  branchName: {
-    fontSize: 18,
-    fontWeight: '600',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#1E3A5F',
   },
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+  refreshIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1E3A5F',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-  },
-  activeTab: {
-    backgroundColor: '#1E3A5F',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    padding: 16,
   },
-  emptyState: {
+  submitCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 48,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#FFF7ED',
+    borderStyle: 'dashed',
   },
-  emptyText: {
+  submitIcon: {
+    marginRight: 14,
+  },
+  submitContent: {
+    flex: 1,
+  },
+  submitTitle: {
     fontSize: 16,
-    color: '#9CA3AF',
-    marginTop: 12,
+    fontWeight: '600',
+    color: '#1E3A5F',
+    marginBottom: 4,
   },
-  section: {
-    marginBottom: 24,
+  submitDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  quickServicesCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1E3A5F',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  requestCard: {
+  servicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  serviceItem: {
+    width: '30%',
+    alignItems: 'center',
+  },
+  serviceIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  serviceLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: '#1E3A5F',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E3A5F',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   requestIcon: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -509,38 +603,66 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   requestType: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1E3A5F',
-    marginBottom: 4,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
+    marginBottom: 2,
   },
   requestDate: {
     fontSize: 12,
     color: '#6B7280',
   },
-  requestNote: {
+  statusBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  statusText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontStyle: 'italic',
-    marginTop: 4,
+    fontWeight: '600',
+  },
+  requestDescription: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+  },
+  urgencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 4,
+  },
+  urgencyText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '500',
   },
   bottomSpacer: {
-    height: Platform.OS === 'ios' ? 100 : 80,
+    height: Platform.OS === 'ios' ? 120 : 100,
+  },
+  chatbotButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 110 : 90,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F97316',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#F97316',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+      },
+      android: { elevation: 8 },
+      web: { boxShadow: '0 4px 16px rgba(249, 115, 22, 0.4)' },
+    }),
+  },
+  modalContainer: {
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,
@@ -558,87 +680,110 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#1E3A5F',
   },
-  inputLabel: {
+  modalSectionTitle: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
+    fontWeight: '600',
+    color: '#1E3A5F',
+    marginBottom: 12,
+    marginTop: 8,
   },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
-  typeButton: {
+  typeItem: {
+    width: '23%',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  typeItemSelected: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#F97316',
+  },
+  typeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  typeLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  typeLabelSelected: {
+    color: '#F97316',
+    fontWeight: '600',
+  },
+  urgencyOptions: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  urgencyOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    gap: 6,
+    borderColor: '#E5E7EB',
   },
-  typeButtonActive: {
-    backgroundColor: '#1E3A5F',
-    borderColor: '#1E3A5F',
+  urgencyDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
   },
-  typeButtonText: {
+  urgencyContent: {
+    flex: 1,
+  },
+  urgencyLabel: {
     fontSize: 14,
+    fontWeight: '600',
     color: '#1E3A5F',
   },
-  typeButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    marginBottom: 20,
-  },
-  urgencyRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24,
-  },
-  urgencyButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-  },
-  urgencyButtonActive: {
-    backgroundColor: '#1E3A5F',
-    borderColor: '#1E3A5F',
-  },
-  urgencyText: {
-    fontSize: 14,
+  urgencyDesc: {
+    fontSize: 12,
     color: '#6B7280',
   },
-  urgencyTextActive: {
-    color: '#FFFFFF',
+  descriptionInput: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: '#1F2937',
+    minHeight: 120,
+    marginBottom: 20,
   },
-  submitModalButton: {
-    backgroundColor: '#F97316',
-    paddingVertical: 16,
-    borderRadius: 8,
+  submitButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E3A5F',
+    borderRadius: 12,
+    paddingVertical: 16,
+    gap: 8,
+    marginBottom: 20,
   },
-  submitModalButtonText: {
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
+  submitButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
