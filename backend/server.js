@@ -2,11 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -74,6 +73,21 @@ async function verifyTenantInFirebase(email) {
   }
 }
 
+// Helper function to verify Firebase ID token
+async function verifyFirebaseIdToken(idToken) {
+  if (!firebaseApp) {
+    throw new Error('Firebase not initialized');
+  }
+  
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    return decodedToken;
+  } catch (error) {
+    console.error('Firebase ID token verification error:', error);
+    throw error;
+  }
+}
+
 // Authentication middleware
 async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -122,29 +136,34 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
-    backend: 'Node.js/Express'
+    backend: 'Node.js/Express',
+    auth: 'Firebase-only'
   });
 });
 
 // ============== Auth Routes ==============
-app.post('/api/auth/session', async (req, res) => {
+
+// Firebase Google Sign-In - Verify ID token and create session
+app.post('/api/auth/google', async (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { idToken } = req.body;
     
-    if (!session_id) {
-      return res.status(400).json({ detail: 'session_id is required' });
+    if (!idToken) {
+      return res.status(400).json({ detail: 'Firebase ID token is required' });
     }
     
-    // Get user data from Emergent Auth
-    const authResponse = await axios.get(
-      'https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data',
-      { headers: { 'X-Session-ID': session_id } }
-    );
+    // Verify the Firebase ID token
+    let decodedToken;
+    try {
+      decodedToken = await verifyFirebaseIdToken(idToken);
+    } catch (error) {
+      return res.status(401).json({ detail: 'Invalid Firebase ID token' });
+    }
     
-    const userData = authResponse.data;
-    const userEmail = userData.email;
+    const userEmail = decodedToken.email;
+    const firebaseUid = decodedToken.uid;
     
-    // Verify tenant exists in Firebase
+    // Verify tenant exists in Firebase Auth (registered tenant check)
     const tenantData = await verifyTenantInFirebase(userEmail);
     
     if (!tenantData) {
@@ -154,7 +173,7 @@ app.post('/api/auth/session', async (req, res) => {
     }
     
     let userId = `user_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
-    const sessionToken = userData.session_token || `session_${uuidv4().replace(/-/g, '')}`;
+    const sessionToken = `session_${uuidv4().replace(/-/g, '')}`;
     
     // Check if user exists in MongoDB
     const existingUser = await db.collection('users').findOne({ email: userEmail });
@@ -164,22 +183,23 @@ app.post('/api/auth/session', async (req, res) => {
       await db.collection('users').updateOne(
         { user_id: userId },
         { $set: {
-          name: userData.name || existingUser.name,
-          picture: userData.picture || existingUser.picture,
-          firebase_tenant_id: tenantData.firebase_id
+          name: decodedToken.name || existingUser.name,
+          picture: decodedToken.picture || existingUser.picture,
+          firebase_uid: firebaseUid,
+          last_login: new Date()
         }}
       );
     } else {
       const newUser = {
         user_id: userId,
         email: userEmail,
-        name: tenantData.name || userData.name || 'Tenant',
-        picture: userData.picture || null,
+        name: decodedToken.name || tenantData.name || userEmail.split('@')[0],
+        picture: decodedToken.picture || tenantData.picture || null,
         phone: tenantData.phone || null,
-        address: tenantData.address || null,
         role: 'resident',
-        firebase_tenant_id: tenantData.firebase_id,
-        created_at: new Date()
+        firebase_uid: firebaseUid,
+        created_at: new Date(),
+        last_login: new Date()
       };
       await db.collection('users').insertOne(newUser);
     }
@@ -203,14 +223,16 @@ app.post('/api/auth/session', async (req, res) => {
     });
     
     const user = await db.collection('users').findOne({ user_id: userId }, { projection: { _id: 0 } });
+    console.log(`User ${userEmail} logged in via Firebase Google Auth`);
     res.json({ user, session_token: sessionToken });
     
   } catch (error) {
-    console.error('Session creation error:', error);
-    res.status(401).json({ detail: 'Invalid session_id' });
+    console.error('Google auth error:', error);
+    res.status(500).json({ detail: 'Authentication service error' });
   }
 });
 
+// Email/Password Login via Firebase
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -264,7 +286,10 @@ app.post('/api/auth/login', async (req, res) => {
       userId = existingUser.user_id;
       await db.collection('users').updateOne(
         { user_id: userId },
-        { $set: { firebase_tenant_id: tenantData.firebase_id } }
+        { $set: { 
+          firebase_uid: tenantData.firebase_id,
+          last_login: new Date()
+        }}
       );
     } else {
       const newUser = {
@@ -274,8 +299,9 @@ app.post('/api/auth/login', async (req, res) => {
         phone: tenantData.phone || null,
         picture: tenantData.picture || null,
         role: 'resident',
-        firebase_tenant_id: tenantData.firebase_id,
-        created_at: new Date()
+        firebase_uid: tenantData.firebase_id,
+        created_at: new Date(),
+        last_login: new Date()
       };
       await db.collection('users').insertOne(newUser);
     }
@@ -299,7 +325,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
     
     const user = await db.collection('users').findOne({ user_id: userId }, { projection: { _id: 0 } });
-    console.log(`User ${email} logged in successfully via email/password`);
+    console.log(`User ${email} logged in via email/password`);
     res.json({ user, session_token: sessionToken });
     
   } catch (error) {
@@ -333,7 +359,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     
     const tenantData = await verifyTenantInFirebase(email);
     if (!tenantData) {
-      // Don't reveal if user exists
       return res.json({ message: 'If your email is registered, you will receive a password reset link.' });
     }
     
@@ -461,13 +486,14 @@ app.get('/api/billing/me', authMiddleware, async (req, res) => {
 
 app.post('/api/billing', authMiddleware, async (req, res) => {
   try {
-    const { amount, description, due_date } = req.body;
+    const { amount, description, billing_type, due_date } = req.body;
     
     const newBill = {
       billing_id: `bill_${uuidv4().replace(/-/g, '').substring(0, 12)}`,
       user_id: req.user.user_id,
       amount,
       description,
+      billing_type: billing_type || 'rent',
       due_date: new Date(due_date),
       status: 'pending',
       payment_method: null,
@@ -479,20 +505,6 @@ app.post('/api/billing', authMiddleware, async (req, res) => {
     res.status(201).json({ ...newBill, _id: undefined });
   } catch (error) {
     res.status(500).json({ detail: 'Failed to create bill' });
-  }
-});
-
-app.put('/api/billing/:billingId', authMiddleware, async (req, res) => {
-  try {
-    const updates = req.body;
-    await db.collection('billing').updateOne(
-      { billing_id: req.params.billingId, user_id: req.user.user_id },
-      { $set: updates }
-    );
-    const bill = await db.collection('billing').findOne({ billing_id: req.params.billingId });
-    res.json({ ...bill, _id: undefined });
-  } catch (error) {
-    res.status(500).json({ detail: 'Failed to update bill' });
   }
 });
 
@@ -533,20 +545,6 @@ app.post('/api/maintenance', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/maintenance/:requestId', authMiddleware, async (req, res) => {
-  try {
-    const updates = { ...req.body, updated_at: new Date() };
-    await db.collection('maintenance_requests').updateOne(
-      { request_id: req.params.requestId },
-      { $set: updates }
-    );
-    const request = await db.collection('maintenance_requests').findOne({ request_id: req.params.requestId });
-    res.json({ ...request, _id: undefined });
-  } catch (error) {
-    res.status(500).json({ detail: 'Failed to update maintenance request' });
-  }
-});
-
 // ============== Announcements Routes ==============
 app.get('/api/announcements', async (req, res) => {
   try {
@@ -560,28 +558,6 @@ app.get('/api/announcements', async (req, res) => {
   }
 });
 
-app.post('/api/announcements', authMiddleware, async (req, res) => {
-  try {
-    const { title, content, priority, category } = req.body;
-    
-    const newAnnouncement = {
-      announcement_id: `ann_${uuidv4().replace(/-/g, '').substring(0, 12)}`,
-      title,
-      content,
-      author_id: req.user.user_id,
-      priority: priority || 'normal',
-      category: category || 'General',
-      is_active: true,
-      created_at: new Date()
-    };
-    
-    await db.collection('announcements').insertOne(newAnnouncement);
-    res.status(201).json({ ...newAnnouncement, _id: undefined });
-  } catch (error) {
-    res.status(500).json({ detail: 'Failed to create announcement' });
-  }
-});
-
 // ============== FAQ Routes ==============
 app.get('/api/faqs', async (req, res) => {
   try {
@@ -591,15 +567,6 @@ app.get('/api/faqs', async (req, res) => {
     res.json(faqs.map(f => ({ ...f, _id: undefined })));
   } catch (error) {
     res.status(500).json({ detail: 'Failed to fetch FAQs' });
-  }
-});
-
-app.get('/api/faqs/categories', async (req, res) => {
-  try {
-    const categories = await db.collection('faqs').distinct('category');
-    res.json(categories);
-  } catch (error) {
-    res.status(500).json({ detail: 'Failed to fetch FAQ categories' });
   }
 });
 
@@ -654,27 +621,9 @@ app.post('/api/seed', async (req, res) => {
         status: 'available',
         price: 5400.0,
         regular_price: 6000.0,
-        short_term_price: 6300.0,
         discount: 10,
-        lease_type: 'Long Term (6+ months)',
         amenities: ['WiFi', 'Air Conditioning', 'Lounge Area', 'Shared Toilet & Shower'],
-        description: 'Quadruple sharing room with common areas.',
         images: ['https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800'],
-        created_at: new Date()
-      },
-      {
-        room_id: 'room_quad_002',
-        room_number: 'Q102',
-        room_type: 'Quadruple Sharing',
-        bed_type: 'Double Deck Bed',
-        capacity: 4,
-        floor: 1,
-        status: 'available',
-        price: 5400.0,
-        regular_price: 6000.0,
-        discount: 10,
-        amenities: ['WiFi', 'Air Conditioning', 'Lounge Area', 'Shared Toilet & Shower'],
-        images: ['https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800'],
         created_at: new Date()
       },
       {
@@ -690,21 +639,6 @@ app.post('/api/seed', async (req, res) => {
         discount: 20,
         amenities: ['WiFi', 'Air Conditioning', 'Lounge Area', 'Shared Toilet & Shower'],
         images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800'],
-        created_at: new Date()
-      },
-      {
-        room_id: 'room_double_002',
-        room_number: 'D102',
-        room_type: 'Double Sharing',
-        bed_type: 'Double Deck Bed',
-        capacity: 2,
-        floor: 1,
-        status: 'occupied',
-        price: 7200.0,
-        regular_price: 9000.0,
-        discount: 20,
-        amenities: ['WiFi', 'Air Conditioning', 'Lounge Area', 'Shared Toilet & Shower'],
-        images: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800'],
         created_at: new Date()
       },
       {
@@ -752,42 +686,12 @@ app.post('/api/seed', async (req, res) => {
       {
         announcement_id: 'ann_003',
         title: 'Monthly Rent Payment Reminder',
-        content: 'Please remember that monthly rent is due on the 1st of each month.',
+        content: 'Please remember that monthly rent is due on the 1st of each month. Grace period: 2 days. Late fee: ₱50/day.',
         author_id: 'admin',
         priority: 'normal',
         category: 'Billing',
         is_active: true,
         created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-      },
-      {
-        announcement_id: 'ann_004',
-        title: '🔧 Scheduled Maintenance Notice',
-        content: 'Water service will be temporarily interrupted on Saturday from 9 AM to 12 PM.',
-        author_id: 'admin',
-        priority: 'high',
-        category: 'Maintenance',
-        is_active: true,
-        created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
-      },
-      {
-        announcement_id: 'ann_005',
-        title: 'WiFi Password Update',
-        content: 'The WiFi password has been updated. Please visit the front desk to get the new password.',
-        author_id: 'admin',
-        priority: 'normal',
-        category: 'General',
-        is_active: true,
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-      },
-      {
-        announcement_id: 'ann_006',
-        title: '🎊 Community Event: Movie Night',
-        content: 'Join us this Friday at 7 PM in the lounge area for our monthly movie night!',
-        author_id: 'admin',
-        priority: 'normal',
-        category: 'Event',
-        is_active: true,
-        created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
       }
     ];
     
@@ -796,12 +700,10 @@ app.post('/api/seed', async (req, res) => {
     
     // Seed FAQs
     const sampleFaqs = [
-      { faq_id: 'faq_001', question: 'What are the payment methods accepted?', answer: 'We accept GCash, bank transfer, credit cards, and cash payments at the front desk.', category: 'Billing' },
+      { faq_id: 'faq_001', question: 'What are the payment methods accepted?', answer: 'We accept Bank Transfer (BDO or BPI), Online Payment, and Cash at the front desk.', category: 'Billing' },
       { faq_id: 'faq_002', question: 'What is included in the monthly rent?', answer: 'Monthly rent includes WiFi, air conditioning usage, water, and access to common areas.', category: 'Billing' },
-      { faq_id: 'faq_003', question: 'What are the quiet hours?', answer: 'Quiet hours are from 10:00 PM to 7:00 AM. Please keep noise to a minimum.', category: 'House Rules' },
-      { faq_id: 'faq_004', question: 'Are visitors allowed?', answer: 'Visitors must register at the front desk. No overnight visitors without prior approval.', category: 'House Rules' },
-      { faq_id: 'faq_005', question: 'How do I submit a maintenance request?', answer: 'Use the Services tab in the app or visit the front desk.', category: 'Maintenance' },
-      { faq_id: 'faq_006', question: 'What is the check-out procedure?', answer: 'Provide 30 days notice, clear all bills, return RFID card, and schedule a room inspection.', category: 'Move-out' }
+      { faq_id: 'faq_003', question: 'What are the quiet hours?', answer: 'Quiet hours are from 10:00 PM to 7:00 AM.', category: 'House Rules' },
+      { faq_id: 'faq_004', question: 'How do I submit a maintenance request?', answer: 'Use the Services tab in the app or visit the front desk.', category: 'Maintenance' }
     ];
     
     await db.collection('faqs').deleteMany({});
@@ -852,42 +754,6 @@ app.post('/api/seed', async (req, res) => {
           payment_method: 'Bank Transfer - BDO',
           payment_date: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000),
           created_at: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000)
-        },
-        {
-          billing_id: 'bill_005',
-          user_id: existingUser.user_id,
-          amount: 720.0,
-          description: 'Electricity Bill - December 2025',
-          billing_type: 'electricity',
-          due_date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
-          status: 'paid',
-          payment_method: 'Bank Transfer - BPI',
-          payment_date: new Date(Date.now() - 62 * 24 * 60 * 60 * 1000),
-          created_at: new Date(Date.now() - 65 * 24 * 60 * 60 * 1000)
-        },
-        {
-          billing_id: 'bill_006',
-          user_id: existingUser.user_id,
-          amount: 380.0,
-          description: 'Water Bill - December 2025',
-          billing_type: 'water',
-          due_date: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000),
-          status: 'paid',
-          payment_method: 'Bank Transfer - BDO',
-          payment_date: new Date(Date.now() - 56 * 24 * 60 * 60 * 1000),
-          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
-        },
-        {
-          billing_id: 'bill_007',
-          user_id: existingUser.user_id,
-          amount: 100.0,
-          description: 'Late Payment Penalty - December 2025',
-          billing_type: 'penalty',
-          due_date: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000),
-          status: 'paid',
-          payment_method: 'Bank Transfer - BDO',
-          payment_date: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000),
-          created_at: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000)
         }
       ];
       
@@ -909,6 +775,7 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log('Backend: Node.js/Express');
+    console.log('Auth: Firebase-only (Google + Email/Password)');
   });
 }
 
