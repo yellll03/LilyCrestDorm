@@ -898,7 +898,7 @@ app.post('/api/chatbot/message', authMiddleware, async (req, res) => {
 });
 
 // Request Live Chat with Admin
-app.post('/api/chatbot/request-admin', authenticateToken, async (req, res) => {
+app.post('/api/chatbot/request-admin', authMiddleware, async (req, res) => {
   try {
     const { session_id, reason } = req.body;
     const userId = req.user.user_id;
@@ -958,7 +958,7 @@ app.post('/api/chatbot/request-admin', authenticateToken, async (req, res) => {
 });
 
 // Get Live Chat Status
-app.get('/api/chatbot/live-status/:sessionId', authenticateToken, async (req, res) => {
+app.get('/api/chatbot/live-status/:sessionId', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const liveChat = liveChatQueue.get(sessionId);
@@ -981,7 +981,7 @@ app.get('/api/chatbot/live-status/:sessionId', authenticateToken, async (req, re
 });
 
 // Admin: Get Pending Live Chats
-app.get('/api/admin/live-chats', authenticateToken, async (req, res) => {
+app.get('/api/admin/live-chats', authMiddleware, async (req, res) => {
   try {
     // Check if user is admin
     const user = await db.collection('users').findOne({ user_id: req.user.user_id });
@@ -1010,7 +1010,7 @@ app.get('/api/admin/live-chats', authenticateToken, async (req, res) => {
 });
 
 // Admin: Accept Live Chat
-app.post('/api/admin/live-chat/accept', authenticateToken, async (req, res) => {
+app.post('/api/admin/live-chat/accept', authMiddleware, async (req, res) => {
   try {
     const { session_id } = req.body;
     const adminUser = await db.collection('users').findOne({ user_id: req.user.user_id });
@@ -1060,7 +1060,7 @@ app.post('/api/admin/live-chat/accept', authenticateToken, async (req, res) => {
 });
 
 // Admin: Send Message in Live Chat
-app.post('/api/admin/live-chat/message', authenticateToken, async (req, res) => {
+app.post('/api/admin/live-chat/message', authMiddleware, async (req, res) => {
   try {
     const { session_id, message } = req.body;
     const adminUser = await db.collection('users').findOne({ user_id: req.user.user_id });
@@ -1089,7 +1089,7 @@ app.post('/api/admin/live-chat/message', authenticateToken, async (req, res) => 
 });
 
 // Close Live Chat
-app.post('/api/chatbot/close-live-chat', authenticateToken, async (req, res) => {
+app.post('/api/chatbot/close-live-chat', authMiddleware, async (req, res) => {
   try {
     const { session_id } = req.body;
     const liveChat = liveChatQueue.get(session_id);
@@ -1120,7 +1120,7 @@ app.post('/api/chatbot/close-live-chat', authenticateToken, async (req, res) => 
 });
 
 // Get Chat History
-app.get('/api/chatbot/history', authenticateToken, async (req, res) => {
+app.get('/api/chatbot/history', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.user_id;
     const history = await db.collection('chat_history')
