@@ -6,6 +6,14 @@ const { MongoClient } = require('mongodb');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// Initialize Google Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
+
+// Chat session storage (in production, use Redis)
+const chatSessions = new Map();
+const liveChatQueue = new Map(); // For live admin chats
 
 const app = express();
 const PORT = process.env.PORT || 8001;
