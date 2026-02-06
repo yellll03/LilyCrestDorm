@@ -16,19 +16,14 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/context/AuthContext';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import { 
   GoogleAuthProvider, 
+  signInWithPopup,
   signInWithCredential,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  getAuth
 } from 'firebase/auth';
 import { auth } from '../src/config/firebase';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// Firebase Web Client ID for Google Sign-In
-const GOOGLE_WEB_CLIENT_ID = '784085654130-ue5677aho518t6btjffc26j6sut1akfj.apps.googleusercontent.com';
 
 // Validation helpers
 const validateEmail = (email) => {
@@ -55,71 +50,6 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [touched, setTouched] = useState({ email: false, password: false });
   const [loginError, setLoginError] = useState('');
-
-  // Google Auth Request - configured for web and mobile
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_WEB_CLIENT_ID,
-    scopes: ['profile', 'email'],
-  });
-
-  // Handle Google Sign-In response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      handleGoogleResponse(response);
-    } else if (response?.type === 'error') {
-      setIsGoogleLoading(false);
-      setLoginError('Google sign-in was cancelled or failed.');
-    } else if (response?.type === 'cancel' || response?.type === 'dismiss') {
-      setIsGoogleLoading(false);
-    }
-  }, [response]);
-
-  const handleGoogleResponse = async (response) => {
-    try {
-      const { id_token, access_token } = response.params;
-      
-      if (id_token) {
-        // Create Firebase credential from the Google ID token
-        const credential = GoogleAuthProvider.credential(id_token, access_token);
-        
-        // Sign in to Firebase with the credential
-        const userCredential = await signInWithCredential(auth, credential);
-        const firebaseUser = userCredential.user;
-        
-        // Get the Firebase ID token to send to our backend
-        const firebaseIdToken = await firebaseUser.getIdToken();
-        
-        // Send to our backend for session creation
-        const result = await signInWithGoogle(firebaseIdToken);
-        
-        if (result.success) {
-          router.replace('/(tabs)/home');
-        } else {
-          setLoginError(result.error || 'Google sign-in failed');
-        }
-      } else if (access_token) {
-        // Fallback: If we only got access_token, try with that
-        const credential = GoogleAuthProvider.credential(null, access_token);
-        const userCredential = await signInWithCredential(auth, credential);
-        const firebaseUser = userCredential.user;
-        const firebaseIdToken = await firebaseUser.getIdToken();
-        
-        const result = await signInWithGoogle(firebaseIdToken);
-        if (result.success) {
-          router.replace('/(tabs)/home');
-        } else {
-          setLoginError(result.error || 'Google sign-in failed');
-        }
-      }
-    } catch (error) {
-      console.error('Google auth error:', error);
-      setLoginError('Failed to sign in with Google. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
 
   // Real-time validation
   useEffect(() => {
@@ -153,31 +83,16 @@ export default function LoginScreen() {
     setLoginError('');
     
     try {
-      // First, sign in with Firebase to validate credentials
-      try {
-        await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-      } catch (firebaseError) {
-        // Handle Firebase-specific errors
-        const errorCode = firebaseError.code;
-        if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
-          setLoginError('Invalid email or password. Please try again.');
-          setIsEmailLoading(false);
-          return;
-        } else if (errorCode === 'auth/too-many-requests') {
-          setLoginError('Too many failed attempts. Please try again later.');
-          setIsEmailLoading(false);
-          return;
-        } else if (errorCode === 'auth/user-disabled') {
-          setLoginError('This account has been disabled.');
-          setIsEmailLoading(false);
-          return;
-        }
-        // For other errors, continue to backend (it might work)
-        console.log('Firebase auth note:', firebaseError.code);
-      }
+      // Sign in with Firebase Authentication directly
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      const firebaseUser = userCredential.user;
       
-      // Then call our backend to create session
-      const result = await loginWithEmail(email.trim().toLowerCase(), password);
+      // Get Firebase ID token
+      const idToken = await firebaseUser.getIdToken();
+      
+      // Send to our backend to create session
+      const result = await signInWithGoogle(idToken);
+      
       if (result.success) {
         router.replace('/(tabs)/home');
       } else {
@@ -185,7 +100,20 @@ export default function LoginScreen() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      setLoginError('An unexpected error occurred. Please try again.');
+      
+      // Handle Firebase-specific errors
+      const errorCode = error.code;
+      if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
+        setLoginError('Invalid email or password. Please try again.');
+      } else if (errorCode === 'auth/too-many-requests') {
+        setLoginError('Too many failed attempts. Please try again later.');
+      } else if (errorCode === 'auth/user-disabled') {
+        setLoginError('This account has been disabled.');
+      } else if (errorCode === 'auth/invalid-email') {
+        setLoginError('Invalid email address format.');
+      } else {
+        setLoginError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setIsEmailLoading(false);
     }
@@ -194,11 +122,41 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     setLoginError('');
+    
     try {
-      await promptAsync();
+      // Use Firebase's signInWithPopup for Google Sign-In
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      
+      // Sign in with popup (works on web)
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      
+      // Get Firebase ID token
+      const idToken = await firebaseUser.getIdToken();
+      
+      // Send to our backend to create session
+      const backendResult = await signInWithGoogle(idToken);
+      
+      if (backendResult.success) {
+        router.replace('/(tabs)/home');
+      } else {
+        setLoginError(backendResult.error || 'Google sign-in failed');
+      }
     } catch (error) {
       console.error('Google login error:', error);
-      setLoginError('Google sign-in failed. Please try again.');
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        setLoginError('Sign-in was cancelled.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setLoginError('Popup was blocked. Please allow popups for this site.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setLoginError('This domain is not authorized for Google Sign-In. Please contact the administrator.');
+      } else {
+        setLoginError('Google sign-in failed. Please try again or use email/password.');
+      }
+    } finally {
       setIsGoogleLoading(false);
     }
   };
@@ -311,11 +269,11 @@ export default function LoginScreen() {
             <View style={styles.divider} />
           </View>
 
-          {/* Google Sign In */}
+          {/* Google Sign In - Using Firebase directly */}
           <TouchableOpacity 
             style={styles.googleButton} 
             onPress={handleGoogleLogin} 
-            disabled={isGoogleLoading || !request}
+            disabled={isGoogleLoading}
           >
             {isGoogleLoading ? (
               <ActivityIndicator color="#1E3A5F" />
