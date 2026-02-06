@@ -824,7 +824,7 @@ async function getGeminiChat(sessionId) {
 }
 
 // AI Chat Message Endpoint
-app.post('/api/chatbot/message', authenticateToken, async (req, res) => {
+app.post('/api/chatbot/message', authMiddleware, async (req, res) => {
   try {
     const { message, session_id } = req.body;
     const userId = req.user.user_id;
