@@ -390,7 +390,7 @@ export default function HomeScreen() {
       >
         <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
       </TouchableOpacity>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -411,32 +411,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
   },
-  header: {
+  greetingSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  userSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  greetingLeft: {
     flex: 1,
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
     borderColor: '#F97316',
   },
   avatarPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#1E3A5F',
     justifyContent: 'center',
     alignItems: 'center',
@@ -444,7 +441,7 @@ const styles = StyleSheet.create({
     borderColor: '#F97316',
   },
   avatarText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
