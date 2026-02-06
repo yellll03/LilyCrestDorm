@@ -12,12 +12,13 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { apiService } from '../../src/services/api';
 import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
+import AppHeader from '../../src/components/AppHeader';
+import SideDrawer from '../../src/components/SideDrawer';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const pollingRef = useRef(null);
   const timeRef = useRef(null);
 
