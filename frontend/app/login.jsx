@@ -1,29 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Image,
-} from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useGoogleSignIn } from '../src/config/googleSignIn';
 import { useAuth } from '../src/context/AuthContext';
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup,
-  signInWithCredential,
-  signInWithEmailAndPassword,
-  getAuth
-} from 'firebase/auth';
-import { auth } from '../src/config/firebase';
 
 // Validation helpers
 const validateEmail = (email) => {
@@ -42,6 +34,7 @@ const validatePassword = (password) => {
 export default function LoginScreen() {
   const router = useRouter();
   const { loginWithEmail, signInWithGoogle, isLoading } = useAuth();
+  const { signInWithGoogle: googleSignIn } = useGoogleSignIn();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -83,15 +76,8 @@ export default function LoginScreen() {
     setLoginError('');
     
     try {
-      // Sign in with Firebase Authentication directly
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-      const firebaseUser = userCredential.user;
-      
-      // Get Firebase ID token
-      const idToken = await firebaseUser.getIdToken();
-      
-      // Send to our backend to create session
-      const result = await signInWithGoogle(idToken);
+      // Use AuthContext's loginWithEmail method
+      const result = await loginWithEmail(email.trim().toLowerCase(), password);
       
       if (result.success) {
         router.replace('/(tabs)/home');
@@ -100,20 +86,7 @@ export default function LoginScreen() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      
-      // Handle Firebase-specific errors
-      const errorCode = error.code;
-      if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
-        setLoginError('Invalid email or password. Please try again.');
-      } else if (errorCode === 'auth/too-many-requests') {
-        setLoginError('Too many failed attempts. Please try again later.');
-      } else if (errorCode === 'auth/user-disabled') {
-        setLoginError('This account has been disabled.');
-      } else if (errorCode === 'auth/invalid-email') {
-        setLoginError('Invalid email address format.');
-      } else {
-        setLoginError('An unexpected error occurred. Please try again.');
-      }
+      setLoginError('An unexpected error occurred. Please try again.');
     } finally {
       setIsEmailLoading(false);
     }
@@ -124,38 +97,29 @@ export default function LoginScreen() {
     setLoginError('');
     
     try {
-      // Use Firebase's signInWithPopup for Google Sign-In
-      const provider = new GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
+      // Use React Native-compatible Google Sign-In
+      const result = await googleSignIn();
       
-      // Sign in with popup (works on web)
-      const result = await signInWithPopup(auth, provider);
-      const firebaseUser = result.user;
-      
-      // Get Firebase ID token
-      const idToken = await firebaseUser.getIdToken();
-      
-      // Send to our backend to create session
-      const backendResult = await signInWithGoogle(idToken);
-      
-      if (backendResult.success) {
-        router.replace('/(tabs)/home');
+      if (result.success) {
+        // Get Firebase ID token
+        const idToken = await result.user.getIdToken();
+        
+        // Send to our backend to create session
+        const backendResult = await signInWithGoogle(idToken);
+        
+        if (backendResult.success) {
+          router.replace('/(tabs)/home');
+        } else {
+          setLoginError(backendResult.error || 'Failed to create session');
+        }
+      } else if (result.cancelled) {
+        setLoginError('Sign-in was cancelled.');
       } else {
-        setLoginError(backendResult.error || 'Google sign-in failed');
+        setLoginError(result.error || 'Google sign-in failed. Please try again.');
       }
     } catch (error) {
       console.error('Google login error:', error);
-      
-      if (error.code === 'auth/popup-closed-by-user') {
-        setLoginError('Sign-in was cancelled.');
-      } else if (error.code === 'auth/popup-blocked') {
-        setLoginError('Popup was blocked. Please allow popups for this site.');
-      } else if (error.code === 'auth/unauthorized-domain') {
-        setLoginError('This domain is not authorized for Google Sign-In. Please contact the administrator.');
-      } else {
-        setLoginError('Google sign-in failed. Please try again or use email/password.');
-      }
+      setLoginError('Google sign-in failed. Please try again or use email/password.');
     } finally {
       setIsGoogleLoading(false);
     }

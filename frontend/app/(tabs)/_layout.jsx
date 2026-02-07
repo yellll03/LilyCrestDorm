@@ -1,7 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
+import { Tabs } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
 // Animated Tab Icon Component
 function AnimatedTabIcon({ focused, iconName, focusedIconName, label, color }) {
@@ -30,15 +30,14 @@ function AnimatedTabIcon({ focused, iconName, focusedIconName, label, color }) {
 
   return (
     <View style={styles.tabItem}>
-      <Animated.View style={[
-        styles.iconWrapper,
-        { backgroundColor: bgColor, transform: [{ scale: scaleAnim }] }
-      ]}>
-        <Ionicons 
-          name={focused ? focusedIconName : iconName} 
-          size={22} 
-          color={focused ? '#F97316' : '#6B7280'} 
-        />
+      <Animated.View style={[styles.iconWrapper, { backgroundColor: bgColor }]}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <Ionicons 
+            name={focused ? focusedIconName : iconName} 
+            size={22} 
+            color={focused ? '#F97316' : '#6B7280'} 
+          />
+        </Animated.View>
       </Animated.View>
       <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
         {label}

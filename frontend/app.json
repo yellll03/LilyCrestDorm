@@ -9,9 +9,23 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyBnOAv1sLnBLmW9y4EP6xRhGScT_0CpTOE"
+      }
     },
     "android": {
+      "package": "com.lilycrest.lilycrestdorm",
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleSignIn": {
+          "apiKey": "AIzaSyBGoiw8OkTUZ3MO1vZJffyAIefu-aEAo-U",
+          "certificateHash": ""
+        },
+        "googleMaps": {
+          "apiKey": "AIzaSyBnOAv1sLnBLmW9y4EP6xRhGScT_0CpTOE"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
@@ -25,10 +39,11 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000"

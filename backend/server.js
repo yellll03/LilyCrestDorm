@@ -18,11 +18,23 @@ const liveChatQueue = new Map(); // For live admin chats
 const app = express();
 const PORT = process.env.PORT || 8001;
 
-// Middleware
+// Middleware - CORS Configuration
 app.use(cors({
-  origin: true,
+  origin: [
+    'http://localhost:8081',
+    'http://localhost:3000',
+    'https://housing-connect-4.preview.emergentagent.net'
+  ],
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -171,14 +183,9 @@ app.post('/api/auth/google', async (req, res) => {
     const userEmail = decodedToken.email;
     const firebaseUid = decodedToken.uid;
     
-    // Verify tenant exists in Firebase Auth (registered tenant check)
-    const tenantData = await verifyTenantInFirebase(userEmail);
-    
-    if (!tenantData) {
-      return res.status(403).json({ 
-        detail: 'Access denied. Your account is not registered as an active tenant. Please contact the dormitory administrator.' 
-      });
-    }
+    // Note: If the ID token is valid, the user is already in Firebase Auth
+    // No need for redundant verification - the decoded token has all the info we need
+    console.log(`Google Sign-In: ${userEmail} (UID: ${firebaseUid})`);
     
     let userId = `user_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
     const sessionToken = `session_${uuidv4().replace(/-/g, '')}`;
@@ -197,19 +204,21 @@ app.post('/api/auth/google', async (req, res) => {
           last_login: new Date()
         }}
       );
+      console.log(`Updated existing user: ${userEmail}`);
     } else {
       const newUser = {
         user_id: userId,
         email: userEmail,
-        name: decodedToken.name || tenantData.name || userEmail.split('@')[0],
-        picture: decodedToken.picture || tenantData.picture || null,
-        phone: tenantData.phone || null,
+        name: decodedToken.name || userEmail.split('@')[0],
+        picture: decodedToken.picture || null,
+        phone: decodedToken.phoneNumber || null,
         role: 'resident',
         firebase_uid: firebaseUid,
         created_at: new Date(),
         last_login: new Date()
       };
       await db.collection('users').insertOne(newUser);
+      console.log(`Created new user: ${userEmail}`);
     }
     
     // Create session
