@@ -32,6 +32,7 @@ export default function ChatbotScreen() {
   const [sessionId] = useState(() => `${user?.user_id || 'guest'}_${Date.now()}`);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
+  const [concernText, setConcernText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [enquiries, setEnquiries] = useState([]);
@@ -85,12 +86,16 @@ export default function ChatbotScreen() {
     }
   };
 
-  const sendAIMessage = async () => {
-    if (!inputText.trim() || isSending) return;
+  const sendAIMessage = async (overrideMessage) => {
+    const messageContent = (overrideMessage ?? inputText).trim();
+    if (!messageContent || isSending) return;
     
-    const userMessage = { id: Date.now().toString(), type: 'user', content: inputText };
+    const userMessage = { id: Date.now().toString(), type: 'user', content: messageContent };
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
+    if (overrideMessage) {
+      setConcernText('');
+    }
     setIsSending(true);
     
     const typingId = `typing_${Date.now()}`;
@@ -206,6 +211,10 @@ export default function ChatbotScreen() {
     setInputText(question);
   };
 
+  const handleConcernSubmit = () => {
+    sendAIMessage(concernText);
+  };
+
   const styles = createStyles(colors, isDarkMode);
 
   const renderChatTab = () => (
@@ -218,15 +227,49 @@ export default function ChatbotScreen() {
       >
         {/* Welcome Message */}
         {messages.length === 0 && (
-          <View style={styles.welcomeSection}>
-            <View style={styles.welcomeHeader}>
-              <Text style={styles.welcomeTitle}>Hi,</Text>
-              <Text style={styles.welcomeSubtitle}>I am Lily, your AI Assistant.</Text>
-              <Text style={styles.welcomeDesc}>I can help you with billing, maintenance, house rules, and more.</Text>
-            </View>
-            
-            {/* Category Buttons */}
-            <View style={styles.categoriesContainer}>
+            <View style={styles.welcomeSection}>
+              <View style={styles.welcomeHeader}>
+                <Text style={styles.welcomeTitle}>Hi,</Text>
+                <Text style={styles.welcomeSubtitle}>I am Lily, your AI Assistant.</Text>
+                <Text style={styles.welcomeDesc}>I can help you with billing, maintenance, house rules, and more.</Text>
+              </View>
+
+              <View style={styles.concernCard}>
+                <View style={styles.concernHeader}>
+                  <View style={styles.concernIcon}>
+                    <Ionicons name="chatbox-ellipses-outline" size={18} color="#F97316" />
+                  </View>
+                  <View>
+                    <Text style={styles.concernTitle}>Share your concern</Text>
+                    <Text style={styles.concernSubtitle}>Describe your issue so I can assist you faster.</Text>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.concernInput}
+                  placeholder="e.g., I need help with my rent payment schedule..."
+                  placeholderTextColor={colors.textMuted}
+                  value={concernText}
+                  onChangeText={setConcernText}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={[styles.concernButton, (!concernText.trim() || isSending) && styles.concernButtonDisabled]}
+                  onPress={handleConcernSubmit}
+                  disabled={isSending || !concernText.trim()}
+                >
+                  {isSending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
+                      <Text style={styles.concernButtonText}>Send concern</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              {/* Category Buttons */}
+              <View style={styles.categoriesContainer}>
               {CATEGORIES.map((category) => (
                 <TouchableOpacity 
                   key={category.id} 
@@ -294,7 +337,7 @@ export default function ChatbotScreen() {
           placeholderTextColor={colors.textMuted}
           value={inputText} 
           onChangeText={setInputText}
-          onSubmitEditing={sendAIMessage}
+          onSubmitEditing={() => sendAIMessage()}
           editable={!isSending}
           multiline
         />
@@ -445,6 +488,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   welcomeTitle: { fontSize: 24, fontWeight: '700', color: '#F97316' },
   welcomeSubtitle: { fontSize: 20, fontWeight: '600', color: '#F97316', marginBottom: 8 },
   welcomeDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
+  concernCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
+  concernHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  concernIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: isDarkMode ? 'rgba(249,115,22,0.2)' : '#FFF7ED', alignItems: 'center', justifyContent: 'center' },
+  concernTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+  concernSubtitle: { fontSize: 13, color: colors.textMuted },
+  concernInput: { backgroundColor: colors.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: colors.text, minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.border },
+  concernButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F97316', paddingVertical: 12, borderRadius: 12, marginTop: 12 },
+  concernButtonDisabled: { backgroundColor: colors.textMuted },
+  concernButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
   categoriesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
   categoryButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 25, borderWidth: 1, borderColor: colors.border, gap: 8 },
   categoryButtonActive: { borderColor: '#F97316', backgroundColor: isDarkMode ? 'rgba(249,115,22,0.1)' : '#FFF7ED' },

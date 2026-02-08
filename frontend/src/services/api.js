@@ -1,7 +1,37 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://housing-connect-4.preview.emergentagent.com';
+const FALLBACK_BACKEND_URL = 'https://housing-connect-4.preview.emergentagent.com';
+
+const resolveBackendUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/$/, '');
+  }
+
+  if (Platform.OS === 'web') {
+    return 'http://localhost:8001';
+  }
+
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (Platform.OS === 'android' && (host === 'localhost' || host === '127.0.0.1')) {
+      return 'http://10.0.2.2:8001';
+    }
+    return `http://${host}:8001`;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:8001';
+  }
+
+  return FALLBACK_BACKEND_URL;
+};
+
+const BACKEND_URL = resolveBackendUrl();
 
 export const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
@@ -69,10 +99,10 @@ export const apiService = {
   getFAQCategories: () => api.get('/faqs/categories'),
   
   // AI Chatbot
-  sendChatMessage: (message, sessionId) => 
-    axios.post(`${BACKEND_URL}:8002/api/chatbot/message`, { message, session_id: sessionId }),
+  sendChatMessage: (message, sessionId) =>
+    api.post('/chatbot/message', { message, session_id: sessionId }),
   resetChatSession: (sessionId) =>
-    axios.post(`${BACKEND_URL}:8002/api/chatbot/reset`, { session_id: sessionId }),
+    api.post('/chatbot/reset', { session_id: sessionId }),
   
   // Support Tickets
   getMyTickets: (status) => api.get('/tickets/me', { params: { status } }),

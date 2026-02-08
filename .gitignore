@@ -46,11 +46,6 @@ dump.rdb
 .DS_Store
 *.pem
 
-# Python
-__pycache__/
-*pyc*
-venv/
-.venv/
 
 # Development tools
 chainlit.md
@@ -77,27 +72,12 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ -e 
+android-sdk/
+
 # Environment files
 *.env
 *.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
+
+# Allow app-specific environment files for this project
+!backend/.env
+!frontend/.env
