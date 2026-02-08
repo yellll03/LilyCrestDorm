@@ -337,7 +337,7 @@ export default function ChatbotScreen() {
           placeholderTextColor={colors.textMuted}
           value={inputText} 
           onChangeText={setInputText}
-          onSubmitEditing={sendAIMessage}
+          onSubmitEditing={() => sendAIMessage()}
           editable={!isSending}
           multiline
         />
