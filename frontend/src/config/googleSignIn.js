@@ -12,6 +12,7 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import {
     getRedirectResult,
     GoogleAuthProvider,
@@ -141,6 +142,13 @@ export function useGoogleSignIn() {
    */
   const signInWithGoogleNative = async () => {
     try {
+      if (Constants.appOwnership === 'expo') {
+        return {
+          success: false,
+          error: 'Google Sign-In requires a custom dev client. Expo Go is not supported.',
+        };
+      }
+
       // Check if request is ready
       if (!request) {
         return {

@@ -1,5 +1,6 @@
 // Google Maps API Configuration
-export const GOOGLE_MAPS_API_KEY = "AIzaSyBnOAv1sLnBLmW9y4EP6xRhGScT_0CpTOE";
+export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+  || "AIzaSyBnOAv1sLnBLmW9y4EP6xRhGScT_0CpTOE";
 
 // Google Maps configuration for react-native-maps or web maps
 export const MAPS_CONFIG = {

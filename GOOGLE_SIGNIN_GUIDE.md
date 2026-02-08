@@ -291,7 +291,7 @@ npx expo start --dev-client
 ## 🎯 Key Features
 
 ✅ **Cross-platform**: Single implementation for web and native
-✅ **Type-safe**: Clear return types with success/error
+✅ **Clear return shape**: Consistent success/error payloads
 ✅ **Error handling**: Comprehensive error messages
 ✅ **Loading states**: Built-in loading indicators
 ✅ **Cancellation**: Handles user cancellation gracefully
@@ -306,7 +306,7 @@ npx expo start --dev-client
 Hook that provides Google Sign-In functionality.
 
 **Returns:**
-```typescript
+```javascript
 {
   signInWithGoogle: () => Promise<SignInResult>,
   checkRedirectResult: () => Promise<SignInResult | null>,
@@ -316,7 +316,7 @@ Hook that provides Google Sign-In functionality.
 ```
 
 **SignInResult:**
-```typescript
+```javascript
 {
   success: boolean,
   user?: FirebaseUser,

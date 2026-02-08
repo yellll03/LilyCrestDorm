@@ -19,12 +19,18 @@ const app = express();
 const PORT = process.env.PORT || 8001;
 
 // Middleware - CORS Configuration
+const defaultCorsOrigins = [
+  'http://localhost:8081',
+  'http://localhost:3000',
+  'https://housing-connect-4.preview.emergentagent.net'
+];
+const configuredFrontendUrl = process.env.FRONTEND_URL;
+const corsOrigins = configuredFrontendUrl
+  ? [configuredFrontendUrl, ...defaultCorsOrigins]
+  : defaultCorsOrigins;
+
 app.use(cors({
-  origin: [
-    'http://localhost:8081',
-    'http://localhost:3000',
-    'https://housing-connect-4.preview.emergentagent.net'
-  ],
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -45,11 +51,34 @@ let db;
 
 // Firebase Admin SDK initialization
 let firebaseApp;
+const buildFirebaseServiceAccount = () => {
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+
+  if (privateKey && clientEmail && projectId) {
+    return {
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+    };
+  }
+
+  return null;
+};
+
 try {
-  const serviceAccount = require('./firebase-credentials.json');
-  firebaseApp = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
+  const envServiceAccount = buildFirebaseServiceAccount();
+  if (envServiceAccount) {
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(envServiceAccount)
+    });
+  } else {
+    const serviceAccount = require('./firebase-credentials.json');
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  }
   console.log('Firebase Admin SDK initialized successfully');
 } catch (error) {
   console.error('Firebase initialization error:', error.message);
@@ -393,7 +422,10 @@ app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
     }
     
     // Update password in Firebase Admin
-    await admin.auth().updateUser(userId, { password: new_password });
+    if (!req.user.firebase_uid) {
+      return res.status(400).json({ detail: 'Firebase account not linked for this user' });
+    }
+    await admin.auth().updateUser(req.user.firebase_uid, { password: new_password });
     
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
@@ -871,7 +903,7 @@ async function getGeminiChat(sessionId) {
 // AI Chat Message Endpoint
 app.post('/api/chatbot/message', authMiddleware, async (req, res) => {
   try {
-    const { message, session_id } = req.body;
+    const { message, session_id, category } = req.body;
     const userId = req.user.user_id;
     
     if (!message) {
@@ -901,8 +933,10 @@ app.post('/api/chatbot/message', authMiddleware, async (req, res) => {
     }
     
     // Send to Gemini AI
-    const fullPrompt = session.history.length === 0 
-      ? `${CHATBOT_SYSTEM_PROMPT}\n\nTenant question: ${message}`
+    const userName = req.user.name || 'Tenant';
+    const categoryLine = category ? `Category: ${category}\n` : '';
+    const fullPrompt = session.history.length === 0
+      ? `${CHATBOT_SYSTEM_PROMPT}\n\nTenant name: ${userName}\n${categoryLine}Tenant question: ${message}`
       : message;
     
     const result = await session.chat.sendMessage(fullPrompt);
@@ -939,6 +973,29 @@ app.post('/api/chatbot/message', authMiddleware, async (req, res) => {
       response: "I'm having trouble connecting right now po. Please try again or contact the admin office at +63 912 345 6789.",
       error: error.message
     });
+  }
+});
+
+// Reset AI Chat Session
+app.post('/api/chatbot/reset', authMiddleware, async (req, res) => {
+  try {
+    const { session_id } = req.body;
+
+    if (!session_id) {
+      return res.status(400).json({ error: 'session_id is required' });
+    }
+
+    chatSessions.delete(session_id);
+
+    const liveChat = liveChatQueue.get(session_id);
+    if (liveChat && liveChat.status === 'waiting') {
+      liveChatQueue.delete(session_id);
+    }
+
+    res.json({ success: true, session_id });
+  } catch (error) {
+    console.error('Chatbot reset error:', error);
+    res.status(500).json({ error: 'Failed to reset chat session' });
   }
 });
 
